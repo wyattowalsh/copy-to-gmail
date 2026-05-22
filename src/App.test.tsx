@@ -18,6 +18,7 @@ let currentEmail = {
 
 const write = vi.fn().mockResolvedValue(undefined)
 const writeText = vi.fn().mockResolvedValue(undefined)
+const fetchMock = vi.fn()
 
 vi.mock('@react-email/editor', () => ({
   EmailEditor: React.forwardRef(function MockEmailEditor(
@@ -70,6 +71,15 @@ describe('App', () => {
     }
     write.mockClear()
     writeText.mockClear()
+    fetchMock.mockReset()
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        connected: false,
+        needsConfig: true,
+        scopes: [],
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
     setLocalStorage(createLocalStorage())
     setClipboard({ write, writeText })
     setClipboardItem(MockClipboardItem)
@@ -150,6 +160,38 @@ describe('App', () => {
     expect(
       await screen.findByText(/Copied rich email: HTML and plain text/i),
     ).toBeInTheDocument()
+  })
+
+  it('exports versioned draft JSON with subject and recipients', async () => {
+    const user = userEvent.setup()
+    const localWriteText = vi
+      .fn<(value: string) => Promise<void>>()
+      .mockResolvedValue(undefined)
+    setClipboard({ write, writeText: localWriteText })
+    render(<App />)
+
+    fireEvent.change(screen.getByPlaceholderText(/add a gmail subject/i), {
+      target: { value: 'Follow up' },
+    })
+    fireEvent.change(screen.getByPlaceholderText(/person@example.com/i), {
+      target: { value: 'person@example.com' },
+    })
+
+    await user.click(screen.getByText(/more actions/i))
+    await user.click(screen.getByRole('button', { name: /export json/i }))
+
+    await waitFor(() => expect(localWriteText).toHaveBeenCalled())
+
+    const exportedRaw = localWriteText.mock.calls.at(-1)?.[0]
+    expect(typeof exportedRaw).toBe('string')
+    const exported = JSON.parse(exportedRaw as string) as {
+      recipients: { to: string }
+      subject: string
+      version: number
+    }
+    expect(exported.version).toBe(2)
+    expect(exported.subject).toBe('Follow up')
+    expect(exported.recipients.to).toBe('person@example.com')
   })
 
   it('supports source mode as a distinct code input with sanitized copy output', async () => {
@@ -306,5 +348,13 @@ function createLocalStorage() {
     setItem: vi.fn((key: string, value: string) => {
       items.set(key, value)
     }),
+  }
+}
+
+function jsonResponse(value: unknown, status = 200) {
+  return {
+    json: () => Promise.resolve(value),
+    ok: status >= 200 && status < 300,
+    status,
   }
 }

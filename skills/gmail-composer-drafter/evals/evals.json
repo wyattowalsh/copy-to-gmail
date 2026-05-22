@@ -1,0 +1,97 @@
+{
+  "skill_name": "gmail-composer-drafter",
+  "evals": [
+    {
+      "id": "draft-product-update",
+      "prompt": "/gmail-composer-drafter draft a concise product update for beta users announcing saved templates",
+      "expected_output": "Mode A: Draft a complete email with subject, preview text, email body, and editor notes.",
+      "files": [],
+      "assertions": [
+        "Agent dispatches to Mode A: Draft.",
+        "Agent loads references/composition-guide.md.",
+        "Agent includes Subject, Preview Text, Email Body, and Editor Notes sections.",
+        "Agent does not output raw HTML.",
+        "Agent mentions Copy for Gmail only in Editor Notes."
+      ]
+    },
+    {
+      "id": "implicit-follow-up",
+      "prompt": "Write a concise follow-up email asking Pat whether they reviewed the proposal and can reply this week.",
+      "expected_output": "An implicit natural-language trigger that auto-detects the closest mode and drafts a follow-up email.",
+      "files": [],
+      "assertions": [
+        "Agent auto-detects the closest mode as Mode A: Draft from natural language.",
+        "Agent includes a subject and preview text.",
+        "Agent does not ask the user to choose a mode when intent is clear."
+      ]
+    },
+    {
+      "id": "revise-existing-copy",
+      "prompt": "/gmail-composer-drafter revise make this warmer: Hi Pat, checking whether you reviewed the proposal. Reply today if possible.",
+      "expected_output": "Mode B: Improve existing email copy while preserving the original ask without inventing details.",
+      "files": [],
+      "assertions": [
+        "Agent dispatches to Mode B: Revise.",
+        "Agent preserves the request to review the proposal and reply.",
+        "Agent does not invent a meeting, discount, deadline, or relationship history.",
+        "Agent includes a brief changelog of meaningful edits."
+      ]
+    },
+    {
+      "id": "outline-investor-update",
+      "prompt": "/gmail-composer-drafter outline a monthly investor update about product progress and runway",
+      "expected_output": "Mode C: Produce an email structure before drafting, with sections, purposes, and notes.",
+      "files": [],
+      "assertions": [
+        "Agent dispatches to Mode C: Outline.",
+        "Agent returns a sectioned structure rather than a complete email draft.",
+        "Agent avoids inventing metrics or runway numbers."
+      ]
+    },
+    {
+      "id": "subject-launch-announcement",
+      "prompt": "/gmail-composer-drafter subject launch announcement for a new reporting dashboard",
+      "expected_output": "Mode D: Generate subject and preview text options grouped by tone.",
+      "files": [],
+      "assertions": [
+        "Agent dispatches to Mode D: Subject.",
+        "Agent returns multiple subject options.",
+        "Agent includes one preview text recommendation."
+      ]
+    },
+    {
+      "id": "paste-plan-markdown",
+      "prompt": "/gmail-composer-drafter paste-plan # Update\nPlease review https://example.com and reply by Friday.",
+      "expected_output": "Mode E: Convert copy into editor-entry guidance that normalizes headings, paragraphs, links, and the final Copy for Gmail handoff.",
+      "files": [],
+      "assertions": [
+        "Agent dispatches to Mode E: Paste Plan.",
+        "Agent gives visual editor entry guidance instead of raw HTML.",
+        "Agent ends with the Copy for Gmail handoff instruction."
+      ]
+    },
+    {
+      "id": "empty-mode-menu",
+      "prompt": "/gmail-composer-drafter",
+      "expected_output": "Show mode menu with examples for draft, revise, outline, subject, and paste-plan.",
+      "files": [],
+      "assertions": [
+        "Agent handles empty arguments with a concise mode menu.",
+        "Agent includes examples for the available modes.",
+        "Agent does not draft an email without a user goal."
+      ]
+    },
+    {
+      "id": "negative-control-inbox-triage",
+      "prompt": "Clean up my Gmail inbox and create filters for newsletters",
+      "expected_output": "A negative control scope refusal that says this skill should not trigger for inbox management and points to email-whiz where appropriate.",
+      "files": [],
+      "assertions": [
+        "Agent does not trigger composition mode for inbox triage.",
+        "Agent refuses or redirects because inbox management is not for this skill.",
+        "Agent redirects inbox management to email-whiz.",
+        "Agent does not use Gmail API tools."
+      ]
+    }
+  ]
+}

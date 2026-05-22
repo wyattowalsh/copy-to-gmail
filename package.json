@@ -1,0 +1,80 @@
+{
+  "name": "copy-to-gmail",
+  "version": "0.1.0",
+  "description": "Local Gmail-ready rich email drafting studio with safe clipboard copy.",
+  "type": "module",
+  "packageManager": "pnpm@10.13.1",
+  "license": "MIT",
+  "homepage": "https://github.com/wyattowalsh/copy-to-gmail#readme",
+  "bugs": {
+    "url": "https://github.com/wyattowalsh/copy-to-gmail/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wyattowalsh/copy-to-gmail.git"
+  },
+  "keywords": [
+    "gmail",
+    "email",
+    "clipboard",
+    "react-email",
+    "local-first"
+  ],
+  "bin": {
+    "copy-to-gmail": "bin/copy-to-gmail.mjs"
+  },
+  "files": [
+    "bin/",
+    "CHANGELOG.md",
+    "dist/",
+    "docs/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "NODE_ENV=development vite",
+    "build": "pnpm typecheck && vite build",
+    "coverage": "NODE_ENV=test vitest run --coverage",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "lint": "eslint .",
+    "pack:dry": "npm pack --dry-run --json",
+    "prepack": "pnpm build",
+    "preview": "vite preview",
+    "start": "node ./bin/copy-to-gmail.mjs",
+    "test": "NODE_ENV=test vitest",
+    "test:run": "NODE_ENV=test vitest run",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@react-email/editor": "^1.4.1",
+    "dompurify": "^3.4.3",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^24.12.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.6",
+    "eslint": "^10.3.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.8.3",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.59.2",
+    "vite": "^8.0.12",
+    "vitest": "^4.1.6"
+  }
+}

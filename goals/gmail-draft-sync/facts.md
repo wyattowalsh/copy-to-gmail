@@ -1,0 +1,93 @@
+- The app keeps all existing local compose, preview, validation, copy, draft JSON import, and draft JSON export behavior working without Gmail login.
+- Gmail features are optional and appear only after the user explicitly connects a Google account.
+- The app supports one connected Gmail account at a time.
+- The connected Gmail account email address is visible in the UI.
+- The user can disconnect the connected Gmail account.
+- The user can switch Gmail accounts by disconnecting and reconnecting.
+- Gmail authentication uses a local no-database OAuth flow through the existing local CLI server.
+- Gmail authentication uses Authorization Code with PKCE or a comparably modern OAuth flow suitable for a local app.
+- Gmail refresh credentials are stored in the OS keychain first.
+- Gmail refresh credentials use a strict-permission protected local file fallback when keychain storage is unavailable.
+- Google OAuth client configuration supports user-supplied local config.
+- Google OAuth client configuration leaves room for an official project-owned client later.
+- Draft sync uses Gmail Drafts as the remote persistence layer.
+- Draft sync does not require a database.
+- Draft sync requests only draft-related Gmail permissions at initial connect.
+- Gmail settings or signature permissions are requested only when the user enables Gmail signature import.
+- The app can list Gmail drafts for the connected account.
+- The app lets the user choose a Gmail draft to load.
+- Loading a Gmail draft imports the draft body into the editor.
+- Loading a Gmail draft imports the draft subject.
+- Loading a Gmail draft imports To, Cc, and Bcc recipients.
+- The app can create a new Gmail draft from the current local draft.
+- The app can update a linked Gmail draft after it has been created or loaded.
+- A linked Gmail draft shows a visible sync state such as pending, synced, error, paused, or conflict.
+- Autosync starts only after the user explicitly creates, loads, or links a Gmail draft.
+- Autosync is based on significant changes, not every editor update.
+- Subject and recipient changes count as significant changes after a short debounce.
+- Meaningful body HTML or text changes count as significant changes after a short debounce.
+- Signature insertion or removal counts as a significant change.
+- Template application counts as a significant change.
+- Unsynced edits eventually count as significant after a maximum unsynced time window.
+- Cursor movement, editor focus changes, and other editor noise do not count as significant changes.
+- Before updating Gmail, the app checks that the remote draft still matches the last synced Gmail fingerprint.
+- The app stores a last-synced Gmail fingerprint for each linked draft.
+- The app stores local version snapshots for active synced drafts.
+- Local version snapshots live in the protected local app data directory.
+- Local version snapshots do not require a database.
+- If the remote Gmail draft changed since the last sync, the app pauses sync and shows a conflict state.
+- Conflict resolution shows an advanced compare UI with local and remote draft differences.
+- The conflict UI offers Replace Local.
+- The conflict UI offers Overwrite Gmail.
+- The conflict UI offers Save New Gmail Draft Version.
+- The conflict UI offers Cancel.
+- Replace Local updates the editor from the current Gmail draft and records a new local snapshot.
+- Overwrite Gmail updates the linked Gmail draft from the local draft after explicit confirmation.
+- Save New Gmail Draft Version creates a separate Gmail draft instead of overwriting the changed remote draft.
+- Cancel keeps local edits intact and leaves sync paused or unresolved.
+- Gmail API failures, revoked credentials, expired credentials, or missing credentials show a clear reconnect or error state.
+- Gmail API failures pause Gmail sync without discarding local edits.
+- Local editing, local templates, local signatures, and export features continue to work while Gmail sync is unavailable.
+- After a draft is saved or synced, the app exposes an Open in Gmail action.
+- Open in Gmail opens the specific Gmail draft when Gmail URL routing supports it.
+- Open in Gmail uses connected-account context when constructing Gmail links.
+- If opening the specific draft is unreliable, Open in Gmail falls back to Gmail Drafts and shows enough local status to identify the draft.
+- The app has a template library separate from Gmail drafts.
+- The template library stores reusable rich email bodies.
+- The template library stores template subject values.
+- The template library stores template To, Cc, and Bcc values when provided.
+- The template library stores template signature selections when provided.
+- The template library supports custom variable definitions.
+- Templates can include built-in or custom placeholders such as `{{first_name}}` and `{{company}}`.
+- Applying a template with placeholders shows a fill-in step before applying the template to the editor.
+- Filled variable values can be applied to subject, recipients, and body content where placeholders are present.
+- The template library is stored in the protected local app data directory.
+- The template library does not require a database.
+- Users can export the whole template library as a JSON bundle.
+- Users can import a whole template library JSON bundle.
+- Users can export an individual template.
+- Users can import an individual template.
+- Users can export an individual signature block.
+- Users can import an individual signature block.
+- Users can export a variable set.
+- Users can import a variable set.
+- The app supports local signature blocks.
+- Local signature blocks can be inserted into drafts.
+- Local signature blocks can be associated with templates.
+- Local signature blocks can be exported and imported with the template library.
+- The app can import Gmail signatures after the user grants the additional Gmail signature permission.
+- Imported Gmail signatures can be inserted into drafts.
+- Imported Gmail signatures can be associated with templates.
+- Imported Gmail signature cache is stored in the protected local app data directory.
+- The first implementation targets macOS first.
+- The first implementation uses abstractions that can later support Windows Credential Manager and Linux Secret Service or protected file fallback.
+- The feature excludes sending email from the app.
+- The feature excludes inbox reading.
+- The feature excludes reading arbitrary Gmail messages outside selected drafts.
+- The feature excludes Gmail labels.
+- The feature excludes Gmail thread management.
+- The feature excludes Gmail search.
+- The feature excludes Google contacts and recipient autocomplete.
+- Documentation and privacy copy clearly state that Gmail API access is optional.
+- Documentation explains what Gmail scopes are requested and why.
+- Documentation explains where no-database local auth, templates, signatures, and version snapshots are stored.
