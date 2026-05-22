@@ -12,7 +12,8 @@ The app stays compose-first. The first screen is the working email studio, not a
 - Browser favicon: `public/icon.png`.
 - Do not introduce a separate generated logo concept.
 - Do not replace the icon with an abstract or simplified mark unless the source icon itself changes.
-- The header mark should render the PNG directly and crop/scale it only enough to fit the chrome.
+- The icon must keep a real alpha channel. Do not ship it with a white or checkerboard square baked into the pixels.
+- The header mark should render the PNG directly, without a separate white tile behind it.
 
 ## Visual Translation
 
@@ -59,7 +60,7 @@ The app stays compose-first. The first screen is the working email studio, not a
 
 ## Surface Rules
 
-- Use a faint checker/grid field because the source icon is presented on a transparent-style checker field.
+- Do not use a checkerboard behind the icon. Use a faint straight grid or blue wash for structure instead.
 - Keep large surfaces glossy and layered, with white panels over blue-tinted rails.
 - Prefer direct icon colors over new palette invention.
 - Keep the icon visible in the app chrome as the brand anchor.
@@ -71,7 +72,7 @@ The app stays compose-first. The first screen is the working email studio, not a
 ### Chrome
 
 - The header uses `public/icon.png` directly.
-- The icon container should be wider than a square badge so the source art reads as document-to-envelope, not just an abstract app icon.
+- The icon container should not add its own filled background; use image drop shadow for depth.
 - The chrome background uses white glass, subtle blue wash, and navy shadow.
 
 ### Composer
