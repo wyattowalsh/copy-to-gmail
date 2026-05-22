@@ -8,10 +8,19 @@ import {
 import { EmailEditor, type EmailEditorRef } from '@react-email/editor'
 import '@react-email/editor/themes/default.css'
 import {
+  LaptopMinimal,
+  Moon,
+  Palette,
+  Settings2,
+  Sun,
+  type LucideIcon,
+} from 'lucide-react'
+import {
   copyRichHtmlToClipboard,
   sanitizeEmailBodyHtml,
   stripHtml,
 } from './lib/clipboard'
+import { ToggleGroup, ToggleGroupItem } from './components/ui/toggle-group'
 import { analyzeEmailBody } from './lib/emailSafety'
 import {
   analyzeGmailReadiness,
@@ -1192,13 +1201,14 @@ function App() {
               preference={settings.themePreference}
               onPreference={handleThemePreference}
             />
-            <span className="theme-summary">{activeTheme.name}</span>
             <button
               type="button"
-              className="secondary-action compact-action"
+              className="icon-button settings-action"
               onClick={openSettings}
+              aria-label="Settings"
+              title="Settings"
             >
-              Settings
+              <Settings2 aria-hidden="true" size={16} strokeWidth={2.1} />
             </button>
           </div>
         </header>
@@ -1973,6 +1983,64 @@ function LibraryPanel({
   )
 }
 
+type ThemeToggleOption = {
+  Icon: LucideIcon
+  label: string
+  mode: ThemePreference
+}
+
+const THEME_TOGGLE_OPTIONS: readonly ThemeToggleOption[] = [
+  { Icon: Sun, label: 'Light', mode: 'light' },
+  { Icon: Moon, label: 'Dark', mode: 'dark' },
+  { Icon: LaptopMinimal, label: 'Auto', mode: 'system' },
+  { Icon: Palette, label: 'Custom', mode: 'custom' },
+]
+
+function ThemePreferenceToggle({
+  preference,
+  onPreference,
+  includeCustom = false,
+  className,
+  ariaLabel,
+}: {
+  preference: ThemePreference
+  onPreference: (preference: ThemePreference) => void
+  includeCustom?: boolean
+  className: string
+  ariaLabel: string
+}) {
+  const activePreference = preference === 'custom' ? 'system' : preference
+  const value = includeCustom ? preference : activePreference
+  const options = includeCustom
+    ? THEME_TOGGLE_OPTIONS
+    : THEME_TOGGLE_OPTIONS.filter((option) => option.mode !== 'custom')
+
+  return (
+    <ToggleGroup
+      type="single"
+      value={value}
+      onValueChange={(nextPreference) => {
+        if (nextPreference) {
+          onPreference(nextPreference as ThemePreference)
+        }
+      }}
+      className={className}
+      aria-label={ariaLabel}
+    >
+      {options.map(({ Icon, label, mode }) => (
+        <ToggleGroupItem
+          key={mode}
+          value={mode}
+          aria-label={`Use ${label.toLowerCase()} theme`}
+        >
+          <Icon aria-hidden="true" strokeWidth={2.1} />
+          <span className="theme-option-label">{label}</span>
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  )
+}
+
 function ThemeSwitcher({
   preference,
   onPreference,
@@ -1980,36 +2048,13 @@ function ThemeSwitcher({
   preference: ThemePreference
   onPreference: (preference: ThemePreference) => void
 }) {
-  const activePreference = preference === 'custom' ? 'system' : preference
-  const options = [
-    { iconClass: 'theme-icon-sun', label: 'Light', mode: 'light' },
-    { iconClass: 'theme-icon-moon', label: 'Dark', mode: 'dark' },
-    { iconClass: 'theme-icon-system', label: 'System', mode: 'system' },
-  ] as const
-
   return (
-    <div
+    <ThemePreferenceToggle
+      preference={preference}
+      onPreference={onPreference}
       className="theme-switcher"
-      data-active={activePreference}
-      role="group"
-      aria-label="Theme preference"
-    >
-      {options.map(({ iconClass, label, mode }) => (
-        <button
-          key={mode}
-          type="button"
-          aria-label={`Use ${label.toLowerCase()} theme`}
-          aria-pressed={preference === mode}
-          onClick={() => onPreference(mode)}
-        >
-          <span
-            className={`theme-switcher-icon ${iconClass}`}
-            aria-hidden="true"
-          />
-          <span>{label}</span>
-        </button>
-      ))}
-    </div>
+      ariaLabel="Theme preference"
+    />
   )
 }
 
@@ -2241,22 +2286,13 @@ function SettingsModal({
                 <small>{activeTheme.mode} mode active</small>
               </div>
             </div>
-            <div
+            <ThemePreferenceToggle
+              preference={settings.themePreference}
+              onPreference={onThemePreference}
+              includeCustom
               className="theme-mode-grid"
-              role="group"
-              aria-label="Theme preference"
-            >
-              {(['light', 'dark', 'system', 'custom'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  aria-pressed={settings.themePreference === mode}
-                  onClick={() => onThemePreference(mode)}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
+              ariaLabel="Theme preference"
+            />
             <span className="settings-subhead">Light presets</span>
             <div className="theme-preset-grid">
               {THEME_PRESETS.filter((theme) => theme.mode === 'light').map(
