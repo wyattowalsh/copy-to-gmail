@@ -8,12 +8,14 @@
 .app-shell {
   --chrome-sticky-top: 12px;
   --studio-sticky-top: 94px;
-  --brand-navy: #061b3a;
-  --brand-blue: #0b66e4;
-  --brand-blue-soft: #64b5ff;
-  --brand-red: #d93025;
-  --brand-yellow: #f9ab00;
-  --brand-green: #188038;
+  --brand-navy: #071e49;
+  --brand-blue: #075df1;
+  --brand-blue-soft: #4bb8ff;
+  --brand-cyan: #10b8d5;
+  --brand-purple: #6247ff;
+  --brand-red: #f7271c;
+  --brand-yellow: #f4b400;
+  --brand-green: #0f9d3f;
   --email-paper: #fff;
   --email-ink: #18202a;
   --email-muted: #334155;
@@ -25,10 +27,20 @@
   color: var(--ink);
   position: relative;
   background:
-    linear-gradient(135deg, rgb(217 48 37 / 8%), transparent 28%) 100% 0 / 520px
+    linear-gradient(135deg, rgb(247 39 28 / 7%), transparent 30%) 100% 0 / 520px
       420px no-repeat,
-    linear-gradient(225deg, rgb(11 102 228 / 12%), transparent 30%) 0 0 / 620px
+    linear-gradient(225deg, rgb(7 93 241 / 13%), transparent 32%) 0 0 / 620px
       520px no-repeat,
+    linear-gradient(315deg, rgb(244 180 0 / 9%), transparent 30%) 100% 100% /
+      620px 420px no-repeat,
+    linear-gradient(45deg, rgb(255 255 255 / 54%) 25%, transparent 25%) 0 0 /
+      28px 28px,
+    linear-gradient(45deg, transparent 75%, rgb(255 255 255 / 54%) 75%) 0 0 /
+      28px 28px,
+    linear-gradient(45deg, transparent 75%, rgb(7 30 73 / 3%) 75%) 14px 14px /
+      28px 28px,
+    linear-gradient(45deg, rgb(7 30 73 / 3%) 25%, transparent 25%) 14px 14px /
+      28px 28px,
     linear-gradient(var(--editor-grid) 1px, transparent 1px) 0 0 / 36px 36px,
     linear-gradient(90deg, var(--editor-grid) 1px, transparent 1px) 0 0 / 36px
       36px,
@@ -54,9 +66,9 @@
   width: min(760px, 68vw);
   height: 220px;
   background:
-    linear-gradient(115deg, rgb(11 102 228 / 14%), transparent 68%),
-    linear-gradient(90deg, rgb(139 211 255 / 18%), transparent);
-  clip-path: polygon(0 0, 100% 0, 78% 100%, 0 72%);
+    linear-gradient(112deg, rgb(75 184 255 / 20%), transparent 65%),
+    linear-gradient(90deg, rgb(7 93 241 / 14%), transparent);
+  clip-path: polygon(0 0, 100% 0, 82% 100%, 0 76%);
 }
 
 .app-shell::after {
@@ -65,8 +77,8 @@
   width: min(680px, 60vw);
   height: 190px;
   background:
-    linear-gradient(315deg, rgb(249 171 0 / 18%), transparent 64%),
-    linear-gradient(45deg, rgb(24 128 56 / 12%), transparent 72%);
+    linear-gradient(315deg, rgb(244 180 0 / 18%), transparent 64%),
+    linear-gradient(45deg, rgb(15 157 63 / 12%), transparent 72%);
   clip-path: polygon(22% 0, 100% 36%, 100% 100%, 0 100%);
 }
 
@@ -108,10 +120,11 @@
   min-height: 68px;
   margin-bottom: 14px;
   border: 1px solid color-mix(in srgb, var(--line-strong) 62%, transparent);
-  border-radius: 12px;
+  border-radius: 18px;
   padding: 12px 14px;
   background:
-    linear-gradient(90deg, rgb(11 102 228 / 7%), transparent 36%),
+    linear-gradient(90deg, rgb(75 184 255 / 13%), transparent 30%),
+    linear-gradient(180deg, rgb(255 255 255 / 74%), transparent),
     color-mix(in srgb, var(--panel) 94%, transparent);
   box-shadow:
     0 18px 48px color-mix(in srgb, var(--brand-navy) 10%, transparent),
@@ -137,22 +150,21 @@
 .app-mark {
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
-  border: 1px solid rgb(139 211 255 / 42%);
-  border-radius: 12px;
-  background:
-    linear-gradient(145deg, rgb(255 255 255 / 18%), transparent),
-    var(--brand-navy);
+  width: 68px;
+  height: 68px;
+  border: 1px solid rgb(75 184 255 / 42%);
+  border-radius: 18px;
+  background: #f7fbff;
   box-shadow:
-    0 12px 28px rgb(6 27 58 / 22%),
-    inset 0 1px 0 rgb(255 255 255 / 28%);
+    0 16px 32px rgb(7 30 73 / 20%),
+    inset 0 1px 0 rgb(255 255 255 / 80%);
 }
 
 .app-mark img {
   display: block;
-  width: 42px;
-  height: 42px;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .app-chrome h1 {
@@ -216,7 +228,7 @@
 .theme-mode-grid button[aria-pressed='true'] {
   color: #fff;
   background:
-    linear-gradient(135deg, var(--brand-blue-soft), var(--blue) 62%),
+    linear-gradient(135deg, var(--brand-blue-soft), var(--blue) 62%, #0348bd),
     var(--blue);
   box-shadow: 0 8px 18px color-mix(in srgb, var(--blue) 24%, transparent);
 }
@@ -252,7 +264,9 @@
 .editor-workbench {
   border-color: color-mix(in srgb, var(--line) 64%, transparent);
   padding: 0;
-  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  background:
+    linear-gradient(90deg, rgb(7 93 241 / 5%), transparent 44%),
+    color-mix(in srgb, var(--panel) 92%, transparent);
   box-shadow:
     0 28px 82px color-mix(in srgb, var(--brand-navy) 13%, transparent),
     0 0 0 1px rgb(255 255 255 / 50%),
@@ -272,7 +286,8 @@
   padding: 18px 14px;
   border-right: 1px solid var(--line);
   background:
-    linear-gradient(180deg, rgb(11 102 228 / 9%), transparent 34%),
+    linear-gradient(180deg, rgb(7 93 241 / 12%), transparent 36%),
+    linear-gradient(160deg, rgb(75 184 255 / 14%), transparent 48%),
     color-mix(in srgb, var(--panel-muted) 78%, transparent);
 }
 
@@ -324,7 +339,9 @@
   padding: 8px 10px 14px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--paper) 72%, transparent);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 80%), transparent),
+    color-mix(in srgb, var(--paper) 78%, transparent);
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--paper) 88%, transparent);
 }
 
@@ -386,7 +403,9 @@
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 6px;
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  background:
+    linear-gradient(90deg, rgb(7 93 241 / 5%), transparent 58%),
+    color-mix(in srgb, var(--paper) 88%, transparent);
   box-shadow:
     0 12px 30px color-mix(in srgb, var(--ink) 7%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--paper) 88%, transparent);
@@ -476,8 +495,9 @@
   border: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
   border-radius: 10px;
   background:
-    linear-gradient(135deg, rgb(217 48 37 / 5%), transparent 28%),
-    linear-gradient(315deg, rgb(249 171 0 / 9%), transparent 25%),
+    linear-gradient(135deg, rgb(247 39 28 / 6%), transparent 30%),
+    linear-gradient(315deg, rgb(244 180 0 / 10%), transparent 28%),
+    linear-gradient(160deg, rgb(75 184 255 / 12%), transparent 32%),
     linear-gradient(90deg, var(--editor-grid) 1px, transparent 1px) 0 0 / 36px
       36px,
     linear-gradient(var(--editor-grid) 1px, transparent 1px) 0 0 / 36px 36px,
@@ -512,6 +532,7 @@
   background: var(--email-paper);
   box-shadow:
     0 28px 72px color-mix(in srgb, var(--brand-navy) 16%, transparent),
+    -18px 0 0 color-mix(in srgb, var(--brand-blue) 10%, transparent),
     0 0 0 1px rgb(255 255 255 / 68%),
     inset 0 1px 0 rgb(255 255 255 / 92%);
   color: var(--email-ink);
@@ -533,6 +554,7 @@
   padding: clamp(42px, 6vw, 72px) clamp(32px, 7vw, 76px) 118px !important;
   box-shadow:
     0 28px 72px color-mix(in srgb, var(--brand-navy) 16%, transparent),
+    -18px 0 0 color-mix(in srgb, var(--brand-blue) 10%, transparent),
     0 0 0 1px rgb(255 255 255 / 68%),
     inset 0 1px 0 rgb(255 255 255 / 92%) !important;
   color: var(--email-ink) !important;
@@ -560,6 +582,17 @@
   font-size: 30px;
   line-height: 1.18;
   letter-spacing: 0;
+}
+
+.email-editor h1::before {
+  display: inline-block;
+  width: 42px;
+  height: 8px;
+  margin-right: 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand-blue), var(--brand-cyan));
+  vertical-align: middle;
+  content: '';
 }
 
 .email-editor p {
@@ -648,7 +681,8 @@
   border-radius: 8px;
   padding: 15px;
   background:
-    linear-gradient(135deg, rgb(11 102 228 / 4%), transparent 34%),
+    linear-gradient(135deg, rgb(7 93 241 / 5%), transparent 34%),
+    linear-gradient(315deg, rgb(255 255 255 / 58%), transparent 44%),
     color-mix(in srgb, var(--panel) 93%, transparent);
   box-shadow:
     0 16px 44px color-mix(in srgb, var(--brand-navy) 9%, transparent),
@@ -1390,9 +1424,9 @@
   }
 
   .app-mark {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
   }
 
   .app-chrome h1 {

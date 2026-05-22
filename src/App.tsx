@@ -1181,7 +1181,7 @@ function App() {
         <header className="app-chrome floating-chrome">
           <div className="brand-block">
             <span className="app-mark" aria-hidden="true">
-              <img src="/brand-mark.svg" alt="" />
+              <img src="/icon.png" alt="" />
             </span>
             <div>
               <h1>Copy to Gmail</h1>

@@ -2,95 +2,104 @@
 
 ## Concept
 
-Copy to Gmail uses a "compiled mail" visual system: structured HTML on the left, Gmail-ready mail on the right, and a confident transfer gesture between them. The design is based on the supplied legacy HTML-to-Gmail icon and the generated concept asset at `public/logo-concept.png`.
+Copy to Gmail uses `public/icon.png` as the source of truth. The interface should feel like the icon was expanded into an app: a glossy white code document, stacked blue copy sheets, a blue transfer arrow, and a Gmail-style envelope with red, yellow, green, and blue accents.
 
-The interface should feel like a local desktop studio, not a marketing page. The first screen stays focused on composing, validating, previewing, and copying a Gmail-ready body.
+The app stays compose-first. The first screen is the working email studio, not a landing page.
 
-## Brand Mark
+## Source Asset
 
-- Primary asset: `public/brand-mark.svg`.
-- Favicon asset: `public/favicon.svg`.
-- Exploratory generated concept: `public/logo-concept.png`.
-- The mark combines a folded HTML document, a mail tile, and a blue transfer arrow.
-- Keep the mark on deep navy or white surfaces with enough breathing room to preserve the navy keyline.
-- Do not recreate the exact Gmail logo. Use the red envelope chevron plus blue, green, and yellow side accents as a visual reference only.
+- Primary icon: `public/icon.png`.
+- Browser favicon: `public/icon.png`.
+- Do not introduce a separate generated logo concept.
+- Do not replace the icon with an abstract or simplified mark unless the source icon itself changes.
+- The header mark should render the PNG directly and crop/scale it only enough to fit the chrome.
+
+## Visual Translation
+
+- White document panels map to editor paper, metadata fields, and modal surfaces.
+- Stacked blue sheets map to left rails, tool clusters, and focused interaction surfaces.
+- The copy badge maps to primary copy actions.
+- The curved blue arrow maps to movement, transfer, and validation affordances.
+- The Gmail envelope maps to sync/readiness accents: red for blocking/errors, yellow for caution, green for success, and blue for the copy path.
 
 ## Color Tokens
 
 ### Core Palette
 
-- Navy ink: `#061b3a`
-- Primary blue: `#0b66e4`
-- Soft blue highlight: `#64b5ff`
-- Mail red: `#d93025`
-- Mail green: `#188038`
-- Mail yellow: `#f9ab00`
-- White glass: `#ffffff`
+- Document white: `#ffffff`
+- App background: `#f2f7ff`
+- Deep code blue: `#071e49`
+- Primary arrow blue: `#075df1`
+- Gloss highlight blue: `#4bb8ff`
+- Code cyan: `#10b8d5`
+- Code purple: `#6247ff`
+- Gmail red: `#f7271c`
+- Gmail yellow: `#f4b400`
+- Gmail green: `#0f9d3f`
 
 ### Default Light Theme
 
-- Background: `#eef5ff`
+- Background: `#f2f7ff`
 - Panel: `#f8fbff`
 - Paper: `#ffffff`
-- Ink: `#061b3a`
-- Muted: `#526174`
-- Line: `#cfdded`
-- Strong line: `#9fb4cc`
+- Ink: `#071e49`
+- Muted: `#5b6b80`
+- Line: `#d6e1ee`
+- Strong line: `#9eb4ce`
 
 ### Default Dark Theme
 
-- Background: `#07111f`
-- Panel: `#0d1a2c`
-- Paper: `#111f34`
-- Ink: `#f4f8ff`
-- Muted: `#a8b8cc`
-- Line: `#213a58`
-- Strong line: `#3b5c82`
+- Background: `#081631`
+- Panel: `#0f203f`
+- Paper: `#14294c`
+- Ink: `#f5f9ff`
+- Muted: `#a9bdd6`
+- Line: `#274468`
+- Strong line: `#436894`
 
 ## Surface Rules
 
-- Compose-first layout: keep the editor as the main screen and the inspector as a supporting column.
-- Use subtle grid texture to imply HTML structure and email layout precision.
-- Use angular blue/yellow/green/red background planes instead of decorative blobs.
-- Keep panels crisp. Cards and controls should use `8px` radius where possible; larger radius is reserved for the app mark or outer shell.
-- Use high-contrast navy keylines for important visual assets and soft blue focus rings for interaction.
-- Avoid one-hue screens. Each primary view should include navy, blue, white, and at least one mail accent color.
+- Use a faint checker/grid field because the source icon is presented on a transparent-style checker field.
+- Keep large surfaces glossy and layered, with white panels over blue-tinted rails.
+- Prefer direct icon colors over new palette invention.
+- Keep the icon visible in the app chrome as the brand anchor.
+- Cards and controls should generally stay at `8px` radius; the header icon container may be rounder to preserve the icon's glossy app-icon feel.
+- Avoid decorative blobs and unrelated illustration.
 
 ## Components
 
 ### Chrome
 
-- Sticky top chrome uses a glass panel with a light blue wash and navy shadow.
-- The app mark appears at 48px on desktop and 36px on mobile.
-- Theme and settings controls stay compact so the composing area remains dominant.
+- The header uses `public/icon.png` directly.
+- The icon container should be wider than a square badge so the source art reads as document-to-envelope, not just an abstract app icon.
+- The chrome background uses white glass, subtle blue wash, and navy shadow.
 
 ### Composer
 
-- The editor workbench uses a structured grid background with restrained red and yellow diagonal washes.
-- The email page itself remains white and high contrast, with a clear paper boundary and a deep navy shadow.
-- Visual and Source mode controls use segmented buttons with blue active state.
+- The editor workbench uses the icon's checker/grid background and blue-sheet left edge.
+- The editor paper remains white with a blue offset shadow that echoes the stacked blue documents.
+- Headings may use a small blue/cyan code-line accent, matching the short colored code bars in the icon.
 
 ### Inspector Cards
 
-- Readiness, Gmail sync, library, and metrics cards share the same 8px card radius and light blue panel wash.
-- Status pills use the semantic palette: green for ready/synced, yellow for warnings/pending, red for blocked/error.
-- Metrics should stay dense and scannable.
+- Inspector cards inherit the document-panel look: white, blue-tinted, compact, and highly scannable.
+- Readiness states use the icon's Gmail colors: green success, yellow caution, red blocked/error.
 
 ### Actions
 
-- Primary action uses the blue gradient from `#64b5ff` to `#0b66e4`.
-- Secondary actions are white glass controls with strong line color.
-- Button labels should remain direct commands: "Copy for Gmail", "Preview", "Validate", "Settings".
+- Primary copy actions use the glossy arrow blue gradient.
+- Secondary controls are white document buttons with blue-gray borders.
+- Keep labels direct: "Copy for Gmail", "Preview", "Validate", "Settings".
 
 ## Motion
 
 - Hover motion is limited to a 1px lift.
-- No animated background decoration.
+- No animated decorative background.
 - Respect `prefers-reduced-motion`.
 
 ## Accessibility
 
 - Maintain visible focus rings on all controls.
-- Preserve the semantic heading structure and screen-reader labels.
+- Preserve semantic headings and screen-reader labels.
 - Keep text letter spacing at `0`.
 - Ensure mobile controls wrap into stable grid tracks without changing width on hover.
