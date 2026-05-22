@@ -4,32 +4,60 @@
   height="96"
   viewBox="0 0 96 96"
   fill="none"
+  role="img"
+  aria-label="Copy to Gmail"
 >
   <rect width="96" height="96" rx="24" fill="#071B3A" />
   <path
     d="M15 27C15 21.477 19.477 17 25 17H52L68 33V65C68 70.523 63.523 75 58 75H25C19.477 75 15 70.523 15 65V27Z"
-    fill="#EFF8FF"
+    fill="url(#paper)"
     stroke="#8BD3FF"
     stroke-width="2.5"
   />
+  <path d="M52 17V29C52 31.209 53.791 33 56 33H68" fill="#D9F0FF" />
   <path
     d="M52 17V29C52 31.209 53.791 33 56 33H68"
-    fill="#D9F0FF"
     stroke="#0B66E4"
     stroke-width="2.5"
     stroke-linejoin="round"
   />
   <path
-    d="M25 34H47M25 44H58M25 54H52"
+    d="M25 33H46"
+    stroke="#063F8F"
+    stroke-width="3"
+    stroke-linecap="round"
+  />
+  <path
+    d="M25 43H58"
     stroke="#8AA9C8"
     stroke-width="3"
     stroke-linecap="round"
+  />
+  <path
+    d="M25 53H52"
+    stroke="#8AA9C8"
+    stroke-width="3"
+    stroke-linecap="round"
+  />
+  <path
+    d="M31 37L24 44L31 51"
+    stroke="#063F8F"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
   />
   <path
     d="M62 42H79C82.314 42 85 44.686 85 48V67C85 70.314 82.314 73 79 73H48C44.686 73 42 70.314 42 67V48C42 44.686 44.686 42 48 42H62Z"
     fill="#FFFFFF"
     stroke="#061B3A"
     stroke-width="3"
+  />
+  <path
+    d="M43 48L63.5 62.5L84 48"
+    stroke="#9FB4CC"
+    stroke-width="2.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
   />
   <path
     d="M44 48L63.5 61.5L83 48"
@@ -60,4 +88,19 @@
     stroke-width="3"
     stroke-linejoin="round"
   />
+  <ellipse cx="66" cy="78" rx="22" ry="5" fill="#F9AB00" opacity=".45" />
+  <defs>
+    <linearGradient
+      id="paper"
+      x1="15"
+      x2="68"
+      y1="17"
+      y2="75"
+      gradientUnits="userSpaceOnUse"
+    >
+      <stop stop-color="#FFFFFF" />
+      <stop offset=".6" stop-color="#EAF6FF" />
+      <stop offset="1" stop-color="#B9D8F6" />
+    </linearGradient>
+  </defs>
 </svg>

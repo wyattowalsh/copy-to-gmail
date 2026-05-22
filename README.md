@@ -110,7 +110,7 @@ Current sync boundaries:
 - Toolbelt for plain-text copy, sanitized HTML copy, validation refresh, formatting cleanup, and versioned draft JSON import/export.
 - Settings modal for editor defaults, privacy reminders, and local draft recovery preference.
 - Theme switcher for light, dark, system, and custom JSON themes.
-- Built-in themes including Gmail Clean, Minimal Ink, Warm Paper, Rose Pine, Rose Pine Dawn, Rose Pine Moon, and high contrast variants.
+- Built-in themes including Mail Glass, Mail Glass Dark, Gmail Clean, Minimal Ink, Warm Paper, Rose Pine, Rose Light, Rose Dark, and high contrast variants.
 
 ## Theme JSON
 
