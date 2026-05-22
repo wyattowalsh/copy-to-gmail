@@ -1980,16 +1980,33 @@ function ThemeSwitcher({
   preference: ThemePreference
   onPreference: (preference: ThemePreference) => void
 }) {
+  const activePreference = preference === 'custom' ? 'system' : preference
+  const options = [
+    { iconClass: 'theme-icon-sun', label: 'Light', mode: 'light' },
+    { iconClass: 'theme-icon-moon', label: 'Dark', mode: 'dark' },
+    { iconClass: 'theme-icon-system', label: 'System', mode: 'system' },
+  ] as const
+
   return (
-    <div className="theme-switcher" role="group" aria-label="Theme preference">
-      {(['light', 'dark', 'system'] as const).map((mode) => (
+    <div
+      className="theme-switcher"
+      data-active={activePreference}
+      role="group"
+      aria-label="Theme preference"
+    >
+      {options.map(({ iconClass, label, mode }) => (
         <button
           key={mode}
           type="button"
+          aria-label={`Use ${label.toLowerCase()} theme`}
           aria-pressed={preference === mode}
           onClick={() => onPreference(mode)}
         >
-          {mode}
+          <span
+            className={`theme-switcher-icon ${iconClass}`}
+            aria-hidden="true"
+          />
+          <span>{label}</span>
         </button>
       ))}
     </div>
