@@ -20,6 +20,16 @@ import {
   sanitizeEmailBodyHtml,
   stripHtml,
 } from './lib/clipboard'
+import { Badge } from './components/ui/badge'
+import { Button } from './components/ui/button'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+} from './components/ui/dialog'
 import { ToggleGroup, ToggleGroupItem } from './components/ui/toggle-group'
 import { analyzeEmailBody } from './lib/emailSafety'
 import {
@@ -114,10 +124,8 @@ function App() {
   const exportRequestRef = useRef(0)
   const previewCloseRef = useRef<HTMLButtonElement>(null)
   const previewOpenerRef = useRef<HTMLElement | null>(null)
-  const previewPanelRef = useRef<HTMLDivElement>(null)
   const settingsCloseRef = useRef<HTMLButtonElement>(null)
   const settingsOpenerRef = useRef<HTMLElement | null>(null)
-  const settingsPanelRef = useRef<HTMLDivElement>(null)
   const appContentRef = useRef<HTMLDivElement>(null)
   const autosyncTimerRef = useRef<number | undefined>(undefined)
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings())
@@ -272,37 +280,6 @@ function App() {
       previewCloseRef.current?.focus()
     }
   }, [isPreviewOpen])
-
-  useEffect(() => {
-    if (!isPreviewOpen && !isSettingsOpen) {
-      return
-    }
-
-    const handleLayerKeydown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Tab') {
-        const activePanel = isSettingsOpen
-          ? settingsPanelRef.current
-          : previewPanelRef.current
-        trapFocusInPanel(event, activePanel)
-        return
-      }
-
-      if (event.key !== 'Escape') return
-
-      if (isSettingsOpen) {
-        setSettingsOpen(false)
-        restoreFocus(settingsOpenerRef)
-        return
-      }
-
-      setPreviewOpen(false)
-      restoreFocus(previewOpenerRef)
-    }
-
-    document.addEventListener('keydown', handleLayerKeydown)
-
-    return () => document.removeEventListener('keydown', handleLayerKeydown)
-  }, [isPreviewOpen, isSettingsOpen])
 
   useEffect(() => {
     const appContent = appContentRef.current
@@ -1201,15 +1178,17 @@ function App() {
               preference={settings.themePreference}
               onPreference={handleThemePreference}
             />
-            <button
+            <Button
               type="button"
+              variant="icon"
+              size="icon"
               className="icon-button settings-action"
               onClick={openSettings}
               aria-label="Settings"
               title="Settings"
             >
               <Settings2 aria-hidden="true" size={16} strokeWidth={2.1} />
-            </button>
+            </Button>
           </div>
         </header>
 
@@ -1222,26 +1201,18 @@ function App() {
               <aside className="editor-rail" aria-label="Editor tools">
                 <div className="rail-section">
                   <span className="field-label">Mode</span>
-                  <div
-                    className="mode-switcher mode-switcher-rail"
-                    role="group"
-                    aria-label="Editor mode"
-                  >
-                    <button
-                      type="button"
-                      aria-pressed={editorMode === 'visual'}
-                      onClick={() => switchToVisualMode()}
-                    >
-                      Visual
-                    </button>
-                    <button
-                      type="button"
-                      aria-pressed={editorMode === 'source'}
-                      onClick={() => void switchToSourceMode()}
-                    >
-                      Source
-                    </button>
-                  </div>
+                  <ModeSwitcher
+                    value={editorMode}
+                    className="mode-switcher-rail"
+                    onMode={(mode) => {
+                      if (mode === 'source') {
+                        void switchToSourceMode()
+                        return
+                      }
+
+                      switchToVisualMode()
+                    }}
+                  />
                 </div>
                 <div className="rail-stat">
                   <strong>{readiness.status}</strong>
@@ -1323,77 +1294,92 @@ function App() {
                   aria-label="Composer tools"
                 >
                   <div className="action-group action-group-primary tool-cluster">
-                    <button
+                    <Button
                       type="button"
+                      variant="primary"
                       className="primary-action"
                       onClick={() => void handleCopyForGmail()}
                       disabled={copyState === 'copying'}
                     >
                       {copyLabel}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="secondary"
                       className="secondary-action"
                       aria-label="Open preview drawer"
                       onClick={() => void handlePreviewBody()}
                     >
                       Preview
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="secondary"
                       className="secondary-action"
                       onClick={() => void handleValidateNow()}
                     >
                       Validate
-                    </button>
+                    </Button>
                   </div>
                   <details className="tool-menu tool-menu-more">
                     <summary>More actions</summary>
                     <div className="tool-menu-panel">
                       <span className="tool-menu-label">Copy variants</span>
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         className="secondary-action"
                         onClick={() => void handleCopyPlainText()}
                       >
                         Plain text
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         className="secondary-action"
                         onClick={() => void handleCopySanitizedHtml()}
                       >
                         Sanitized HTML
-                      </button>
+                      </Button>
                       <span className="tool-menu-label">Draft tools</span>
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         className="secondary-action"
                         onClick={() => void handleExportDraftJson()}
                       >
                         Export JSON
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         className="secondary-action"
                         onClick={handleImportDraftJson}
                       >
                         Import JSON
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         className="secondary-action"
                         onClick={() => void handleClearFormatting()}
                       >
                         Clear formatting
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         className="secondary-action"
                         onClick={handleResetStarter}
                       >
                         Reset starter
-                      </button>
+                      </Button>
                     </div>
                   </details>
                 </div>
@@ -1419,13 +1405,15 @@ function App() {
                           <span className="field-label">Code input</span>
                           <strong>Paste or edit body HTML</strong>
                         </div>
-                        <button
+                        <Button
                           type="button"
+                          variant="secondary"
+                          size="sm"
                           className="secondary-action compact-action"
                           onClick={applySourceToVisual}
                         >
                           Apply to visual editor
-                        </button>
+                        </Button>
                       </div>
                       <label className="sr-only" htmlFor="source-html">
                         Source HTML
@@ -1537,10 +1525,10 @@ function App() {
         <PreviewDrawer
           html={pasteableHtml}
           mode={previewMode}
-          panelRef={previewPanelRef}
           readiness={readiness}
           sourceHtml={pasteableHtml}
           text={pasteableText}
+          themeStyle={themeStyle}
           closeButtonRef={previewCloseRef}
           onClose={closePreview}
           onMode={setPreviewMode}
@@ -1551,8 +1539,8 @@ function App() {
         <SettingsModal
           activeTheme={activeTheme}
           closeButtonRef={settingsCloseRef}
-          panelRef={settingsPanelRef}
           settings={settings}
+          themeStyle={themeStyle}
           themeJsonDraft={themeJsonDraft}
           themeJsonError={themeJsonError}
           onApplyThemeJson={handleApplyThemeJson}
@@ -2058,6 +2046,35 @@ function ThemeSwitcher({
   )
 }
 
+function ModeSwitcher({
+  className,
+  onMode,
+  value,
+}: {
+  className?: string
+  onMode: (mode: EditorMode) => void
+  value: EditorMode
+}) {
+  return (
+    <div
+      className={['mode-switcher', className].filter(Boolean).join(' ')}
+      aria-label="Editor mode"
+      role="group"
+    >
+      {(['visual', 'source'] as const).map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          aria-pressed={value === mode}
+          onClick={() => onMode(mode)}
+        >
+          {mode === 'visual' ? 'Visual' : 'Source'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function ReadinessCompact({ report }: { report: GmailReadinessReport }) {
   const warningCount = report.checks.filter(
     (check) => check.state !== 'pass',
@@ -2069,13 +2086,14 @@ function ReadinessCompact({ report }: { report: GmailReadinessReport }) {
         <span className="field-label">Readiness</span>
         <strong>{report.status}</strong>
       </div>
-      <span
+      <Badge
+        tone={getReadinessTone(report.status)}
         className={`readiness-pill readiness-${report.status.toLowerCase().replace(' ', '-')}`}
       >
         {warningCount
           ? `${warningCount} issue${warningCount === 1 ? '' : 's'}`
           : 'Ready to copy'}
-      </span>
+      </Badge>
     </section>
   )
 }
@@ -2091,11 +2109,12 @@ function ReadinessPanel({ report }: { report: GmailReadinessReport }) {
           <span className="field-label">Gmail readiness</span>
           <h2 id="readiness-heading">{report.status}</h2>
         </div>
-        <span
+        <Badge
+          tone={getReadinessTone(report.status)}
           className={`readiness-pill readiness-${report.status.toLowerCase().replace(' ', '-')}`}
         >
           {report.status}
-        </span>
+        </Badge>
       </div>
       <ul className="readiness-list">
         {report.checks.map((check) => (
@@ -2115,100 +2134,124 @@ function ReadinessPanel({ report }: { report: GmailReadinessReport }) {
   )
 }
 
+function getReadinessTone(
+  status: GmailReadinessReport['status'],
+): 'success' | 'warning' | 'error' {
+  if (status === 'Ready') {
+    return 'success'
+  }
+
+  return status === 'Copy blocked' ? 'error' : 'warning'
+}
+
 function PreviewDrawer({
   closeButtonRef,
   html,
   mode,
-  panelRef,
   readiness,
   sourceHtml,
   text,
+  themeStyle,
   onClose,
   onMode,
 }: {
   closeButtonRef: RefObject<HTMLButtonElement | null>
   html: string
   mode: PreviewMode
-  panelRef: RefObject<HTMLDivElement | null>
   readiness: GmailReadinessReport
   sourceHtml: string
   text: string
+  themeStyle: CSSProperties
   onClose: () => void
   onMode: (mode: PreviewMode) => void
 }) {
   return (
-    <section className="preview-drawer" aria-label="Gmail body preview">
-      <button
-        type="button"
-        className="preview-backdrop"
-        aria-label="Close preview"
-        onClick={onClose}
-      />
-      <div
-        ref={panelRef}
-        className="preview-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="preview-heading"
-        tabIndex={-1}
-      >
-        <div className="preview-header">
-          <div>
-            <span className="eyebrow">Sanitized preview</span>
-            <h2 id="preview-heading">Gmail body preview</h2>
-          </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            className="icon-button"
-            onClick={onClose}
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <DialogPortal>
+        <section
+          className="preview-drawer"
+          aria-label="Gmail body preview"
+          style={themeStyle}
+        >
+          <DialogOverlay />
+          <DialogContent
+            aria-label="Gmail body preview"
+            className="preview-panel"
           >
-            Close
-          </button>
-        </div>
-        <div className="preview-tabs" role="group" aria-label="Preview mode">
-          {(['rendered', 'plain', 'source'] as const).map((previewMode) => (
-            <button
-              key={previewMode}
-              type="button"
-              aria-pressed={mode === previewMode}
-              className={mode === previewMode ? 'active' : ''}
-              onClick={() => onMode(previewMode)}
+            <div className="preview-header">
+              <div>
+                <span className="eyebrow">Sanitized preview</span>
+                <DialogTitle id="preview-heading">
+                  Gmail body preview
+                </DialogTitle>
+              </div>
+              <DialogClose asChild>
+                <Button
+                  ref={closeButtonRef}
+                  type="button"
+                  variant="secondary"
+                  className="icon-button"
+                >
+                  Close
+                </Button>
+              </DialogClose>
+            </div>
+            <div
+              className="preview-tabs"
+              role="group"
+              aria-label="Preview mode"
             >
-              {previewMode === 'rendered'
-                ? 'Rendered'
-                : previewMode === 'plain'
-                  ? 'Plain text'
-                  : 'Source'}
-            </button>
-          ))}
-        </div>
-        <div className="preview-meta">
-          <span>
-            {readiness.linkCount} link{readiness.linkCount === 1 ? '' : 's'}
-          </span>
-          <span>{text.length} plain-text chars</span>
-        </div>
-        {mode === 'rendered' ? (
-          <article
-            className="preview-content"
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-        ) : (
-          <pre className="preview-content preview-text">
-            {mode === 'plain' ? text : sanitizeEmailBodyHtml(sourceHtml)}
-          </pre>
-        )}
-      </div>
-    </section>
+              {(['rendered', 'plain', 'source'] as const).map((previewMode) => (
+                <Button
+                  key={previewMode}
+                  type="button"
+                  variant={mode === previewMode ? 'primary' : 'secondary'}
+                  aria-pressed={mode === previewMode}
+                  className={mode === previewMode ? 'active' : ''}
+                  onClick={() => onMode(previewMode)}
+                >
+                  {previewMode === 'rendered'
+                    ? 'Rendered'
+                    : previewMode === 'plain'
+                      ? 'Plain text'
+                      : 'Source'}
+                </Button>
+              ))}
+            </div>
+            <div className="preview-meta">
+              <Badge tone="neutral">
+                {readiness.linkCount} link
+                {readiness.linkCount === 1 ? '' : 's'}
+              </Badge>
+              <Badge tone="neutral">{text.length} plain-text chars</Badge>
+            </div>
+            {mode === 'rendered' ? (
+              <article
+                className="preview-content"
+                dangerouslySetInnerHTML={{ __html: html }}
+              />
+            ) : (
+              <pre className="preview-content preview-text">
+                {mode === 'plain' ? text : sanitizeEmailBodyHtml(sourceHtml)}
+              </pre>
+            )}
+          </DialogContent>
+        </section>
+      </DialogPortal>
+    </Dialog>
   )
 }
 
 function SettingsModal({
   activeTheme,
   closeButtonRef,
-  panelRef,
   settings,
+  themeStyle,
   themeJsonDraft,
   themeJsonError,
   onApplyThemeJson,
@@ -2221,8 +2264,8 @@ function SettingsModal({
 }: {
   activeTheme: ThemeDefinition
   closeButtonRef: RefObject<HTMLButtonElement | null>
-  panelRef: RefObject<HTMLDivElement | null>
   settings: AppSettings
+  themeStyle: CSSProperties
   themeJsonDraft: string
   themeJsonError: string
   onApplyThemeJson: () => void
@@ -2234,201 +2277,215 @@ function SettingsModal({
   onThemePreference: (preference: ThemePreference) => void
 }) {
   return (
-    <section className="settings-layer" aria-label="Settings">
-      <button
-        type="button"
-        className="preview-backdrop"
-        aria-label="Close settings"
-        onClick={onClose}
-      />
-      <div
-        ref={panelRef}
-        className="settings-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-heading"
-        tabIndex={-1}
-      >
-        <div className="preview-header">
-          <div>
-            <span className="eyebrow">Studio controls</span>
-            <h2 id="settings-heading">Settings</h2>
-          </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            className="icon-button"
-            onClick={onClose}
-          >
-            Close
-          </button>
-        </div>
-
-        <div className="settings-grid">
-          <section className="settings-section">
-            <h3>Appearance</h3>
-            <p>
-              Theme changes stay local. Pick a bundled preset here, or use the
-              advanced JSON editor below when you need custom tokens.
-            </p>
-            <div className="active-theme-summary">
-              <span
-                style={{
-                  background: activeTheme.tokens.background,
-                  borderColor: activeTheme.tokens.lineStrong,
-                  color: activeTheme.tokens.accent,
-                }}
-              >
-                Aa
-              </span>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <DialogPortal>
+        <section
+          className="settings-layer"
+          aria-label="Settings"
+          style={themeStyle}
+        >
+          <DialogOverlay />
+          <DialogContent aria-label="Settings" className="settings-panel">
+            <div className="preview-header">
               <div>
-                <strong>{activeTheme.name}</strong>
-                <small>{activeTheme.mode} mode active</small>
+                <span className="eyebrow">Studio controls</span>
+                <DialogTitle id="settings-heading">Settings</DialogTitle>
               </div>
+              <DialogClose asChild>
+                <Button
+                  ref={closeButtonRef}
+                  type="button"
+                  variant="secondary"
+                  className="icon-button"
+                >
+                  Close
+                </Button>
+              </DialogClose>
             </div>
-            <ThemePreferenceToggle
-              preference={settings.themePreference}
-              onPreference={onThemePreference}
-              includeCustom
-              className="theme-mode-grid"
-              ariaLabel="Theme preference"
-            />
-            <span className="settings-subhead">Light presets</span>
-            <div className="theme-preset-grid">
-              {THEME_PRESETS.filter((theme) => theme.mode === 'light').map(
-                (theme) => (
-                  <button
-                    key={theme.id}
-                    type="button"
-                    className="theme-card"
-                    aria-pressed={activeTheme.id === theme.id}
-                    onClick={() => onPresetTheme(theme)}
-                  >
-                    <span
-                      style={{
-                        background: theme.tokens.background,
-                        borderColor: theme.tokens.lineStrong,
-                        color: theme.tokens.accent,
-                      }}
-                    >
-                      Aa
-                    </span>
-                    {theme.name}
-                  </button>
-                ),
-              )}
-            </div>
-            <span className="settings-subhead">Dark presets</span>
-            <div className="theme-preset-grid">
-              {THEME_PRESETS.filter((theme) => theme.mode === 'dark').map(
-                (theme) => (
-                  <button
-                    key={theme.id}
-                    type="button"
-                    className="theme-card"
-                    aria-pressed={activeTheme.id === theme.id}
-                    onClick={() => onPresetTheme(theme)}
-                  >
-                    <span
-                      style={{
-                        background: theme.tokens.background,
-                        borderColor: theme.tokens.lineStrong,
-                        color: theme.tokens.accent,
-                      }}
-                    >
-                      Aa
-                    </span>
-                    {theme.name}
-                  </button>
-                ),
-              )}
-            </div>
-          </section>
 
-          <section className="settings-section settings-section-advanced">
-            <h3>Advanced Theme JSON</h3>
-            <p>
-              Copy, paste, validate, and apply a local theme token object. This
-              is intentionally tucked away from the main composing flow.
-            </p>
-            <label className="sr-only" htmlFor="theme-json">
-              Theme JSON
-            </label>
-            <textarea
-              id="theme-json"
-              className="theme-json-input"
-              spellCheck={false}
-              value={themeJsonDraft}
-              onChange={(event) => onThemeJsonDraft(event.target.value)}
-            />
-            {themeJsonError ? (
-              <p className="settings-error" role="alert">
-                {themeJsonError}
-              </p>
-            ) : null}
-            <div className="settings-actions">
-              <button
-                type="button"
-                className="secondary-action compact-action"
-                onClick={onApplyThemeJson}
-              >
-                Apply JSON
-              </button>
-              <button
-                type="button"
-                className="secondary-action compact-action"
-                onClick={onCopyThemeJson}
-              >
-                Copy current JSON
-              </button>
-            </div>
-          </section>
+            <div className="settings-grid">
+              <section className="settings-section">
+                <h3>Appearance</h3>
+                <p>
+                  Theme changes stay local. Pick a bundled preset here, or use
+                  the advanced JSON editor below when you need custom tokens.
+                </p>
+                <div className="active-theme-summary">
+                  <span
+                    style={{
+                      background: activeTheme.tokens.background,
+                      borderColor: activeTheme.tokens.lineStrong,
+                      color: activeTheme.tokens.accent,
+                    }}
+                  >
+                    Aa
+                  </span>
+                  <div>
+                    <strong>{activeTheme.name}</strong>
+                    <small>{activeTheme.mode} mode active</small>
+                  </div>
+                </div>
+                <ThemePreferenceToggle
+                  preference={settings.themePreference}
+                  onPreference={onThemePreference}
+                  includeCustom
+                  className="theme-mode-grid"
+                  ariaLabel="Theme preference"
+                />
+                <span className="settings-subhead">Light presets</span>
+                <div className="theme-preset-grid">
+                  {THEME_PRESETS.filter((theme) => theme.mode === 'light').map(
+                    (theme) => (
+                      <Button
+                        key={theme.id}
+                        type="button"
+                        variant="secondary"
+                        className="theme-card"
+                        aria-pressed={activeTheme.id === theme.id}
+                        onClick={() => onPresetTheme(theme)}
+                      >
+                        <span
+                          style={{
+                            background: theme.tokens.background,
+                            borderColor: theme.tokens.lineStrong,
+                            color: theme.tokens.accent,
+                          }}
+                        >
+                          Aa
+                        </span>
+                        {theme.name}
+                      </Button>
+                    ),
+                  )}
+                </div>
+                <span className="settings-subhead">Dark presets</span>
+                <div className="theme-preset-grid">
+                  {THEME_PRESETS.filter((theme) => theme.mode === 'dark').map(
+                    (theme) => (
+                      <Button
+                        key={theme.id}
+                        type="button"
+                        variant="secondary"
+                        className="theme-card"
+                        aria-pressed={activeTheme.id === theme.id}
+                        onClick={() => onPresetTheme(theme)}
+                      >
+                        <span
+                          style={{
+                            background: theme.tokens.background,
+                            borderColor: theme.tokens.lineStrong,
+                            color: theme.tokens.accent,
+                          }}
+                        >
+                          Aa
+                        </span>
+                        {theme.name}
+                      </Button>
+                    ),
+                  )}
+                </div>
+              </section>
 
-          <section className="settings-section">
-            <h3>Editor and privacy</h3>
-            <label className="toggle-row">
-              <span>Open in Source mode by default</span>
-              <input
-                type="checkbox"
-                checked={settings.editorMode === 'source'}
-                onChange={(event) =>
-                  onSettings({
-                    editorMode: event.target.checked ? 'source' : 'visual',
-                  })
-                }
-              />
-            </label>
-            <label className="toggle-row">
-              <span>Show clipboard privacy reminders</span>
-              <input
-                type="checkbox"
-                checked={settings.clipboardPrivacyReminder}
-                onChange={(event) =>
-                  onSettings({ clipboardPrivacyReminder: event.target.checked })
-                }
-              />
-            </label>
-            <label className="toggle-row">
-              <span>Opt in to local draft recovery</span>
-              <input
-                type="checkbox"
-                checked={settings.draftRecovery}
-                onChange={(event) =>
-                  onSettings({ draftRecovery: event.target.checked })
-                }
-              />
-            </label>
-            <button
-              type="button"
-              className="secondary-action compact-action"
-              onClick={() => onSettings(defaultSettings)}
-            >
-              Reset settings
-            </button>
-          </section>
-        </div>
-      </div>
-    </section>
+              <section className="settings-section settings-section-advanced">
+                <h3>Advanced Theme JSON</h3>
+                <p>
+                  Copy, paste, validate, and apply a local theme token object.
+                  This is intentionally tucked away from the main composing
+                  flow.
+                </p>
+                <label className="sr-only" htmlFor="theme-json">
+                  Theme JSON
+                </label>
+                <textarea
+                  id="theme-json"
+                  className="theme-json-input"
+                  spellCheck={false}
+                  value={themeJsonDraft}
+                  onChange={(event) => onThemeJsonDraft(event.target.value)}
+                />
+                {themeJsonError ? (
+                  <p className="settings-error" role="alert">
+                    {themeJsonError}
+                  </p>
+                ) : null}
+                <div className="settings-actions">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="secondary-action compact-action"
+                    onClick={onApplyThemeJson}
+                  >
+                    Apply JSON
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="secondary-action compact-action"
+                    onClick={onCopyThemeJson}
+                  >
+                    Copy current JSON
+                  </Button>
+                </div>
+              </section>
+
+              <section className="settings-section">
+                <h3>Editor and privacy</h3>
+                <label className="toggle-row">
+                  <span>Open in Source mode by default</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.editorMode === 'source'}
+                    onChange={(event) =>
+                      onSettings({
+                        editorMode: event.target.checked ? 'source' : 'visual',
+                      })
+                    }
+                  />
+                </label>
+                <label className="toggle-row">
+                  <span>Show clipboard privacy reminders</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.clipboardPrivacyReminder}
+                    onChange={(event) =>
+                      onSettings({
+                        clipboardPrivacyReminder: event.target.checked,
+                      })
+                    }
+                  />
+                </label>
+                <label className="toggle-row">
+                  <span>Opt in to local draft recovery</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.draftRecovery}
+                    onChange={(event) =>
+                      onSettings({ draftRecovery: event.target.checked })
+                    }
+                  />
+                </label>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="secondary-action compact-action"
+                  onClick={() => onSettings(defaultSettings)}
+                >
+                  Reset settings
+                </Button>
+              </section>
+            </div>
+          </DialogContent>
+        </section>
+      </DialogPortal>
+    </Dialog>
   )
 }
 
@@ -2447,50 +2504,6 @@ function restoreFocus(ref: RefObject<HTMLElement | null>) {
   }
 
   window.requestAnimationFrame(() => target.focus())
-}
-
-function trapFocusInPanel(
-  event: globalThis.KeyboardEvent,
-  panel: HTMLElement | null,
-) {
-  if (!panel) {
-    return
-  }
-
-  const focusableElements = getFocusableElements(panel)
-
-  if (!focusableElements.length) {
-    event.preventDefault()
-    panel.focus()
-    return
-  }
-
-  const firstElement = focusableElements[0]
-  const lastElement = focusableElements[focusableElements.length - 1]
-  const activeElement = document.activeElement
-
-  if (event.shiftKey && activeElement === firstElement) {
-    event.preventDefault()
-    lastElement.focus()
-    return
-  }
-
-  if (!event.shiftKey && activeElement === lastElement) {
-    event.preventDefault()
-    firstElement.focus()
-  }
-}
-
-function getFocusableElements(container: HTMLElement): HTMLElement[] {
-  return Array.from(
-    container.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    ),
-  ).filter(
-    (element) =>
-      !element.hasAttribute('disabled') &&
-      element.getAttribute('aria-hidden') !== 'true',
-  )
 }
 
 function buildSourceEmail(html: string): EmailExport {

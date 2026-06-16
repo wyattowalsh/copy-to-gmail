@@ -50,6 +50,7 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.17",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@react-email/editor": "^1.4.1",
     "class-variance-authority": "^0.7.1",

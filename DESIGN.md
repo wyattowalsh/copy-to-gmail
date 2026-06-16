@@ -2,7 +2,7 @@
 
 ## Concept
 
-Copy to Gmail uses `public/icon.png` as the source of truth. The interface should feel like the icon was expanded into an app: a glossy white code document, stacked blue copy sheets, a blue transfer arrow, and a Gmail-style envelope with red, yellow, green, and blue accents.
+Copy to Gmail uses `public/icon.png` as the source of truth, but the product UI is a restrained composition tool rather than a literal expansion of the icon. The interface should feel calm, precise, local-first, and optimized for repeated daily drafting.
 
 The app stays compose-first. The first screen is the working email studio, not a landing page.
 
@@ -17,11 +17,11 @@ The app stays compose-first. The first screen is the working email studio, not a
 
 ## Visual Translation
 
+- The logo stays visible in the header as the primary multicolor moment.
 - White document panels map to editor paper, metadata fields, and modal surfaces.
-- Stacked blue sheets map to left rails, tool clusters, and focused interaction surfaces.
-- The copy badge maps to primary copy actions.
-- The curved blue arrow maps to movement, transfer, and validation affordances.
-- The Gmail envelope maps to sync/readiness accents: red for blocking/errors, yellow for caution, green for success, and blue for the copy path.
+- Blue is reserved for the copy path and focused controls.
+- Gmail-adjacent red, yellow, and green are functional state colors only: error, caution, and success.
+- Inspector surfaces use subtle borders, spacing, and type hierarchy rather than decorative elevation.
 
 ## Color Tokens
 
@@ -40,32 +40,32 @@ The app stays compose-first. The first screen is the working email studio, not a
 
 ### Default Light Theme
 
-- Background: `#f2f7ff`
-- Panel: `#f8fbff`
+- Background: `#f6f7f9`
+- Panel: `#fbfcfe`
 - Paper: `#ffffff`
-- Ink: `#071e49`
-- Muted: `#5b6b80`
-- Line: `#d6e1ee`
-- Strong line: `#9eb4ce`
+- Ink: `#18202a`
+- Muted: `#5b6472`
+- Line: `#d8dee8`
+- Strong line: `#aeb8c7`
 
 ### Default Dark Theme
 
-- Background: `#081631`
-- Panel: `#0f203f`
-- Paper: `#14294c`
-- Ink: `#f5f9ff`
-- Muted: `#a9bdd6`
-- Line: `#274468`
-- Strong line: `#436894`
+- Background: `#111827`
+- Panel: `#172033`
+- Paper: `#1f2937`
+- Ink: `#f7f9fc`
+- Muted: `#a8b2c1`
+- Line: `#303b4f`
+- Strong line: `#526077`
 
 ## Surface Rules
 
-- Do not use a checkerboard behind the icon. Use a faint straight grid or blue wash for structure instead.
-- Keep large surfaces glossy and layered, with white panels over blue-tinted rails.
+- Do not use a checkerboard, decorative grid, glow, or bokeh treatment behind the icon or editor.
+- Keep large surfaces quiet and utilitarian, with clear borders and modest shadows.
 - Prefer direct icon colors over new palette invention.
 - Keep the icon visible in the app chrome as the brand anchor.
-- Cards and controls should generally stay at `8px` radius; the header icon container may be rounder to preserve the icon's glossy app-icon feel.
-- Avoid decorative blobs and unrelated illustration.
+- Cards and controls should generally stay at `8px` to `12px` radius.
+- Avoid decorative blobs, unrelated illustration, excessive glassmorphism, and ornamental animation.
 
 ## Components
 
@@ -73,23 +73,24 @@ The app stays compose-first. The first screen is the working email studio, not a
 
 - The header uses `public/icon.png` directly.
 - The icon container should not add its own filled background; use image drop shadow for depth.
-- The chrome background uses white glass, subtle blue wash, and navy shadow.
+- The chrome background is a compact app bar with a simple border and stable controls.
 
 ### Composer
 
-- The editor workbench uses the icon's checker/grid background and blue-sheet left edge.
-- The editor paper remains white with a blue offset shadow that echoes the stacked blue documents.
-- Headings may use a small blue/cyan code-line accent, matching the short colored code bars in the icon.
+- The editor is the dominant workspace.
+- The editor paper remains white in light mode and high-contrast in dark mode.
+- Metadata, readiness, and actions sit close to the editor without competing with it.
 
 ### Inspector Cards
 
-- Inspector cards inherit the document-panel look: white, blue-tinted, compact, and highly scannable.
+- Inspector cards are compact, subordinate, and highly scannable.
 - Readiness states use the icon's Gmail colors: green success, yellow caution, red blocked/error.
 
 ### Actions
 
-- Primary copy actions use the glossy arrow blue gradient.
-- Secondary controls are white document buttons with blue-gray borders.
+- `Copy for Gmail` is the only primary call to action in the main composer.
+- Primary copy actions use a flat blue accent.
+- Secondary controls are quiet document buttons with blue-gray borders.
 - Keep labels direct: "Copy for Gmail", "Preview", "Validate", "Settings".
 
 ## Motion

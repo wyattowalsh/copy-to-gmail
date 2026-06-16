@@ -5,7 +5,7 @@ import type * as React from 'react'
 import { cn } from '../../lib/utils'
 
 const toggleGroupVariants = cva(
-  'inline-flex w-fit items-center justify-center gap-1 rounded-full border border-[color:var(--line)] bg-[color:var(--panel)] p-1 text-[12px] font-[780] shadow-sm',
+  'inline-flex w-fit items-center justify-center gap-1 rounded-[var(--control-radius)] border border-[color:var(--line)] bg-[color:var(--surface-muted)] p-1 text-xs font-semibold shadow-sm',
   {
     variants: {
       size: {
@@ -20,7 +20,7 @@ const toggleGroupVariants = cva(
 )
 
 const toggleGroupItemVariants = cva(
-  'inline-flex min-w-0 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[color:var(--muted)] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--paper)] disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-[color:var(--paper)] data-[state=on]:text-[color:var(--ink)] data-[state=on]:shadow-sm [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  'inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[calc(var(--control-radius)-2px)] px-3 py-1.5 text-[color:var(--muted)] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--bg)] disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-[color:var(--paper)] data-[state=on]:text-[color:var(--ink)] data-[state=on]:shadow-sm [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       size: {
