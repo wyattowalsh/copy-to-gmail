@@ -44,4 +44,24 @@ describe('templates', () => {
   it('renders missing placeholders as empty strings', () => {
     expect(renderPlaceholders('Hello {{name}}', {})).toBe('Hello ')
   })
+
+  it('sanitizes placeholder values before returning applied template HTML', () => {
+    const template = createTemplateFromDraft({
+      draft: createLocalDraft({
+        html: '<p>Hello {{name}}</p>',
+      }),
+      id: 'tpl_unsafe',
+      name: 'Unsafe',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+
+    const draft = applyTemplate(template, {
+      name: '<img src=x onerror="alert(1)"><a href="javascript:alert(1)">bad</a>',
+    })
+
+    expect(draft.html).toContain('bad')
+    expect(draft.html).not.toContain('<img')
+    expect(draft.html).not.toContain('onerror')
+    expect(draft.html).not.toContain('javascript:')
+  })
 })

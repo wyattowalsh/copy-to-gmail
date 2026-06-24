@@ -23,7 +23,7 @@ describe('library bundles', () => {
       ],
       templates: [
         {
-          html: '<p>Hello</p>',
+          html: '<p><a href="javascript:alert(1)">Hello</a></p><script>alert(1)</script>',
           id: 'tpl_1',
           name: 'Hello',
           recipients: { to: 'a@example.com' },
@@ -46,6 +46,7 @@ describe('library bundles', () => {
 
     expect(serialized).not.toContain('refreshToken')
     expect(serialized).not.toContain('<script')
+    expect(serialized).not.toContain('javascript:')
     expect(parseLibraryBundle(JSON.parse(serialized))).toEqual(bundle)
   })
 

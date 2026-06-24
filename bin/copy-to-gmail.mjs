@@ -33,6 +33,20 @@ const distDir = join(rootDir, 'dist')
 const packageJsonPath = join(rootDir, 'package.json')
 const defaultHost = '127.0.0.1'
 const defaultPortRange = { min: 42000, max: 60999 }
+const oauthSessionTtlMs = 10 * 60 * 1000
+const writeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  "base-uri 'none'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'none'",
+  "img-src 'self' data:",
+  "font-src 'self' data:",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "connect-src 'self'",
+].join('; ')
 
 const mimeTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
@@ -76,7 +90,21 @@ if (!existsSync(join(distDir, 'index.html'))) {
 
 const port = args.port ?? (Number(process.env.PORT) || (await findOpenPort()))
 const server = createServer((request, response) => {
-  void handleRequest(request, response)
+  void handleRequest(request, response).catch((error) => {
+    if (response.headersSent) {
+      response.destroy(error)
+      return
+    }
+
+    sendJson(
+      response,
+      {
+        error:
+          error instanceof Error ? error.message : 'Request could not be read.',
+      },
+      error instanceof ApiError ? error.statusCode : 500,
+    )
+  })
 })
 
 server.listen(port, args.host, () => {
@@ -103,7 +131,7 @@ async function handleRequest(request, response) {
     return
   }
 
-  const pathname = decodeURIComponent(parsedUrl.pathname)
+  const pathname = decodeRequestPath(parsedUrl.pathname)
   const candidatePath = normalize(join(distDir, pathname))
   const isInsideDist =
     candidatePath === distDir || candidatePath.startsWith(`${distDir}/`)
@@ -115,15 +143,37 @@ async function handleRequest(request, response) {
     mimeTypes.get(extname(filePath)) ?? 'application/octet-stream'
 
   response.setHeader('Content-Type', mimeType)
-  response.setHeader('X-Content-Type-Options', 'nosniff')
-  response.setHeader('Referrer-Policy', 'no-referrer')
+  setSecurityHeaders(response)
   createReadStream(filePath).pipe(response)
 }
 
 async function handleApiRequest(request, response, parsedUrl, origin) {
   try {
+    if (request.method === 'OPTIONS') {
+      sendJson(response, { error: 'CORS preflight is not supported.' }, 405)
+      return
+    }
+
+    if (!isExpectedLocalHost(request, args.host, port)) {
+      sendJson(response, { error: 'API request host is not allowed.' }, 403)
+      return
+    }
+
+    if (isWriteRequest(request) && !isSameOriginWrite(request, origin)) {
+      sendJson(response, { error: 'API request origin is not allowed.' }, 403)
+      return
+    }
+
     if (parsedUrl.pathname === '/api/gmail/status') {
       await handleGmailStatus(response)
+      return
+    }
+
+    if (
+      parsedUrl.pathname === '/api/gmail/connect' &&
+      !isSameOriginNavigation(request, origin)
+    ) {
+      sendJson(response, { error: 'API request origin is not allowed.' }, 403)
       return
     }
 
@@ -198,9 +248,10 @@ async function handleApiRequest(request, response, parsedUrl, origin) {
       parsedUrl.pathname === '/api/gmail/drafts' &&
       request.method === 'POST'
     ) {
-      const { token } = await requireGmailAccess()
       const body = await readJsonBody(request)
-      const result = await createDraft(token.accessToken, body.draft)
+      const draft = readDraftPayload(body)
+      const { token } = await requireGmailAccess()
+      const result = await createDraft(token.accessToken, draft)
       attachAccount(result, token.email)
       await appendDraftSnapshot(token.email, result.draft.gmail.draftId, {
         draft: result.draft,
@@ -220,7 +271,7 @@ async function handleApiRequest(request, response, parsedUrl, origin) {
       const { token } = await requireGmailAccess()
       const result = await getDraft(
         token.accessToken,
-        decodeURIComponent(draftMatch[1]),
+        decodeRequestPath(draftMatch[1]),
       )
       attachAccount(result, token.email)
       sendJson(response, result)
@@ -228,9 +279,10 @@ async function handleApiRequest(request, response, parsedUrl, origin) {
     }
 
     if (draftMatch && request.method === 'PUT') {
-      const { token } = await requireGmailAccess()
-      const draftId = decodeURIComponent(draftMatch[1])
       const body = await readJsonBody(request)
+      const draft = readDraftPayload(body)
+      const draftId = decodeRequestPath(draftMatch[1])
+      const { token } = await requireGmailAccess()
 
       if (typeof body.expectedFingerprint === 'string') {
         const remote = await getDraft(token.accessToken, draftId)
@@ -251,7 +303,7 @@ async function handleApiRequest(request, response, parsedUrl, origin) {
         }
       }
 
-      const result = await updateDraft(token.accessToken, draftId, body.draft)
+      const result = await updateDraft(token.accessToken, draftId, draft)
       attachAccount(result, token.email)
       await appendDraftSnapshot(token.email, result.draft.gmail.draftId, {
         draft: result.draft,
@@ -268,7 +320,7 @@ async function handleApiRequest(request, response, parsedUrl, origin) {
     sendJson(
       response,
       { error: error instanceof Error ? error.message : 'API request failed.' },
-      500,
+      error instanceof ApiError ? error.statusCode : 500,
     )
   }
 }
@@ -286,6 +338,7 @@ async function handleGmailStatus(response) {
 }
 
 async function handleGmailConnect(response, origin, parsedUrl) {
+  pruneOAuthSessions()
   const config = await readGoogleOAuthConfig()
 
   if (!config) {
@@ -305,22 +358,24 @@ async function handleGmailConnect(response, origin, parsedUrl) {
       ? signatureScopes
       : undefined
   const session = createOAuthStart({ config, origin, scopes })
-  oauthSessions.set(session.state, { ...session, config })
-  response.statusCode = 302
-  response.setHeader('Location', session.url)
-  response.end()
+  oauthSessions.set(session.state, {
+    ...session,
+    config,
+    createdAt: Date.now(),
+  })
+  sendRedirect(response, session.url)
 }
 
 async function handleGmailCallback(response, parsedUrl) {
+  const now = Date.now()
+  pruneOAuthSessions(now)
   const state = parsedUrl.searchParams.get('state') ?? ''
   const code = parsedUrl.searchParams.get('code') ?? ''
   const session = oauthSessions.get(state)
   oauthSessions.delete(state)
 
-  if (!session || !code) {
-    response.statusCode = 302
-    response.setHeader('Location', '/?gmail=error')
-    response.end()
+  if (!session || !code || isOAuthSessionExpired(session, now)) {
+    sendRedirect(response, '/?gmail=error')
     return
   }
 
@@ -330,9 +385,7 @@ async function handleGmailCallback(response, parsedUrl) {
     config: session.config,
     redirectUri: session.redirectUri,
   })
-  response.statusCode = 302
-  response.setHeader('Location', '/?gmail=connected')
-  response.end()
+  sendRedirect(response, '/?gmail=connected')
 }
 
 async function requireGmailAccess() {
@@ -355,35 +408,154 @@ function attachAccount(result, accountEmail) {
   result.draft.gmail.accountEmail = accountEmail
 }
 
+function pruneOAuthSessions(now = Date.now()) {
+  for (const [state, session] of oauthSessions) {
+    if (isOAuthSessionExpired(session, now)) {
+      oauthSessions.delete(state)
+    }
+  }
+}
+
+function isOAuthSessionExpired(session, now = Date.now()) {
+  return (
+    typeof session.createdAt !== 'number' ||
+    now - session.createdAt > oauthSessionTtlMs
+  )
+}
+
+function isWriteRequest(request) {
+  return writeMethods.has(request.method ?? '')
+}
+
+function isExpectedLocalHost(request, host, port) {
+  const expectedHost = `${host}:${port}`
+  const requestHost = request.headers.host
+
+  return requestHost === expectedHost
+}
+
+function isSameOriginWrite(request, origin) {
+  return hasSameOriginProof(request, origin)
+}
+
+function isSameOriginNavigation(request, origin) {
+  return hasSameOriginProof(request, origin, { allowDirectNavigation: true })
+}
+
+function hasSameOriginProof(
+  request,
+  origin,
+  { allowDirectNavigation = false } = {},
+) {
+  const requestOrigin = request.headers.origin
+
+  if (requestOrigin && requestOrigin !== origin) {
+    return false
+  }
+
+  const fetchSiteHeader = request.headers['sec-fetch-site']
+  const fetchSite = Array.isArray(fetchSiteHeader)
+    ? fetchSiteHeader[0]?.toLowerCase()
+    : fetchSiteHeader?.toLowerCase()
+
+  if (fetchSite && fetchSite !== 'same-origin') {
+    return allowDirectNavigation && fetchSite === 'none'
+  }
+
+  return requestOrigin === origin || fetchSite === 'same-origin'
+}
+
 function readJsonBody(request) {
+  const contentTypeHeader = request.headers['content-type']
+  const contentType = Array.isArray(contentTypeHeader)
+    ? (contentTypeHeader[0] ?? '')
+    : (contentTypeHeader ?? '')
+
+  if (!/^application\/json(?:\s*;|$)/i.test(contentType)) {
+    return Promise.reject(
+      new ApiError('Request body must be application/json.', 415),
+    )
+  }
+
   return new Promise((resolveBody, rejectBody) => {
     let raw = ''
+    let bodyTooLarge = false
     request.setEncoding('utf8')
     request.on('data', (chunk) => {
+      if (bodyTooLarge) {
+        return
+      }
+
       raw += chunk
 
       if (raw.length > 1_000_000) {
-        rejectBody(new Error('Request body is too large.'))
-        request.destroy()
+        bodyTooLarge = true
+        rejectBody(new ApiError('Request body is too large.', 413))
+        request.resume()
       }
     })
     request.on('end', () => {
+      if (bodyTooLarge) {
+        return
+      }
+
       try {
         resolveBody(raw ? JSON.parse(raw) : {})
       } catch {
-        rejectBody(new Error('Request body must be valid JSON.'))
+        rejectBody(new ApiError('Request body must be valid JSON.', 400))
       }
     })
     request.on('error', rejectBody)
   })
 }
 
+function decodeRequestPath(value) {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    throw new ApiError('Request path is malformed.', 400)
+  }
+}
+
+function readDraftPayload(body) {
+  if (!isPlainRecord(body) || !isPlainRecord(body.draft)) {
+    throw new ApiError('Request body must include a draft object.', 400)
+  }
+
+  return body.draft
+}
+
+function isPlainRecord(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+class ApiError extends Error {
+  constructor(message, statusCode) {
+    super(message)
+    this.name = 'ApiError'
+    this.statusCode = statusCode
+  }
+}
+
 function sendJson(response, value, statusCode = 200) {
   response.statusCode = statusCode
   response.setHeader('Content-Type', 'application/json; charset=utf-8')
+  setSecurityHeaders(response)
+  response.end(JSON.stringify(value))
+}
+
+function sendRedirect(response, location) {
+  response.statusCode = 302
+  setSecurityHeaders(response)
+  response.setHeader('Location', location)
+  response.end()
+}
+
+function setSecurityHeaders(response) {
   response.setHeader('X-Content-Type-Options', 'nosniff')
   response.setHeader('Referrer-Policy', 'no-referrer')
-  response.end(JSON.stringify(value))
+  response.setHeader('X-Frame-Options', 'DENY')
+  response.setHeader('Content-Security-Policy', contentSecurityPolicy)
 }
 
 function parseArgs(argv) {

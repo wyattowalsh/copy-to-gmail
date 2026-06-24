@@ -4,6 +4,15 @@ Local Gmail-ready drafting studio for composing rich email, validating paste saf
 
 Copy to Gmail runs on your machine. Gmail API access is optional and only starts after you connect a Google account through the local CLI server. The app does not send email, read your inbox, manage labels, or collect telemetry.
 
+## Product Model
+
+This repo is organized around two product surfaces:
+
+- **Open-source local core:** the packaged `copy-to-gmail` CLI, static React app, sanitizer, clipboard writer, local library, optional local Gmail Draft sync, and drafting skill assets. This surface must stay usable without accounts, telemetry, billing, or a hosted database.
+- **Hosted/SaaS product lane:** a future managed drafting workspace for team templates, shared libraries, managed OAuth, and policy-controlled compose workflows. Hosted-only code should stay isolated from the local CLI path and must not change draft, library, clipboard, or theme schemas without a compatibility plan.
+
+See [`docs/product-model.md`](docs/product-model.md) for the repository boundary rules.
+
 ## Quick Start
 
 Run the packaged app with `npx`:
@@ -50,7 +59,7 @@ Preview the packaged server from a production build:
 
 ```sh
 pnpm build
-pnpm start -- --no-open
+pnpm start --no-open
 ```
 
 ## Gmail Workflow
@@ -78,6 +87,8 @@ copy-to-gmail --no-open
 ```
 
 Alternatively, set `COPY_TO_GMAIL_GOOGLE_OAUTH_CONFIG` to a JSON file containing `clientId` and optional `clientSecret`, or place `google-oauth.json` in the app data directory.
+
+The app-specific variables above take precedence. For compatibility, the server also reads `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` only when the app-specific names are unset; prefer the app-specific names so credentials from another Google tool are not reused accidentally.
 
 Requested initial scopes:
 
@@ -110,7 +121,7 @@ Current sync boundaries:
 - Toolbelt for plain-text copy, sanitized HTML copy, validation refresh, formatting cleanup, and versioned draft JSON import/export.
 - Settings modal for editor defaults, privacy reminders, and local draft recovery preference.
 - Theme switcher for light, dark, system, and custom JSON themes.
-- Built-in themes including Icon Light, Icon Dark, Gmail Clean, Minimal Ink, Warm Paper, Rose Pine, Rose Light, Rose Dark, and high contrast variants.
+- Searchable, indexed built-in themes spanning core, Gmail, focus, paper, editorial, and contrast categories. Rosé Pine presets use the official main, dawn, and moon palette values.
 
 ## Theme JSON
 

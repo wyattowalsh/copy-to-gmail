@@ -56,7 +56,6 @@ const REMOVE_WITH_CONTENT = new Set([
 const GLOBAL_ATTRIBUTES = new Set([
   'align',
   'aria-label',
-  'class',
   'dir',
   'lang',
   'role',
@@ -72,6 +71,52 @@ const ELEMENT_ATTRIBUTES: Record<string, Set<string>> = {
 }
 
 const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:'])
+const SAFE_STYLE_PROPERTIES = new Set([
+  'background',
+  'background-color',
+  'border',
+  'border-bottom',
+  'border-collapse',
+  'border-color',
+  'border-left',
+  'border-radius',
+  'border-right',
+  'border-spacing',
+  'border-style',
+  'border-top',
+  'border-width',
+  'color',
+  'font-family',
+  'font-size',
+  'font-style',
+  'font-weight',
+  'height',
+  'letter-spacing',
+  'line-height',
+  'margin',
+  'margin-bottom',
+  'margin-left',
+  'margin-right',
+  'margin-top',
+  'max-height',
+  'max-width',
+  'min-height',
+  'min-width',
+  'overflow-wrap',
+  'padding',
+  'padding-bottom',
+  'padding-left',
+  'padding-right',
+  'padding-top',
+  'table-layout',
+  'text-align',
+  'text-decoration',
+  'text-transform',
+  'vertical-align',
+  'white-space',
+  'width',
+  'word-break',
+])
 
 export function getPasteableBodyHtml(fullHtml: string): string {
   const trimmed = fullHtml.trim()
@@ -113,7 +158,7 @@ export function sanitizeEmailBodyHtml(fullHtml: string): string {
     sanitizeChildren(doc.body)
     return doc.body.innerHTML.trim()
   } catch {
-    return sanitizeWithRegexFallback(bodyHtml)
+    return sanitizeWithTextFallback(bodyHtml)
   }
 }
 
@@ -234,18 +279,57 @@ function isSafeUrl(value: string): boolean {
 }
 
 function isSafeInlineStyle(value: string): boolean {
-  return !/expression\s*\(|javascript\s*:|url\s*\(/i.test(value)
+  if (
+    /[{}<>]|expression\s*\(|javascript\s*:|url\s*\(|behavior\s*:|-moz-binding/i.test(
+      value,
+    )
+  ) {
+    return false
+  }
+
+  return value
+    .split(';')
+    .map((declaration) => declaration.trim())
+    .filter(Boolean)
+    .every((declaration) => {
+      const separator = declaration.indexOf(':')
+
+      if (separator <= 0) {
+        return false
+      }
+
+      const property = declaration.slice(0, separator).trim().toLowerCase()
+      const propertyValue = declaration.slice(separator + 1).trim()
+
+      return (
+        SAFE_STYLE_PROPERTIES.has(property) &&
+        Boolean(propertyValue) &&
+        !property.startsWith('-')
+      )
+    })
 }
 
-function sanitizeWithRegexFallback(html: string): string {
-  return removeHtmlComments(html)
-    .replace(
-      /<\/?(?:script|style|iframe|object|embed|svg|math|template|meta)[^>]*>/gi,
-      '',
-    )
-    .replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/\s+(?:href|src)\s*=\s*(["'])\s*javascript:[^"']*\1/gi, '')
-    .trim()
+function sanitizeWithTextFallback(html: string): string {
+  return escapeHtml(
+    normalizeWhitespace(removeHtmlComments(html).replace(/<[^>]*>/g, ' ')),
+  )
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case '&':
+        return '&amp;'
+      case '<':
+        return '&lt;'
+      case '>':
+        return '&gt;'
+      case '"':
+        return '&quot;'
+      default:
+        return '&#39;'
+    }
+  })
 }
 
 function removeHtmlComments(value: string): string {

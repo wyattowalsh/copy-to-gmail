@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import DOMPurify from 'dompurify'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   analyzeEmailBody,
@@ -8,6 +9,10 @@ import {
 } from './emailSafety'
 
 describe('emailSafety', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('extracts only body HTML and removes comments', () => {
     expect(
       getPasteableBodyHtml(`
@@ -44,6 +49,24 @@ describe('emailSafety', () => {
     expect(html).not.toContain('<script')
   })
 
+  it('removes class hooks and layout styles that could affect the app shell', () => {
+    const html = sanitizeEmailBodyHtml(`
+      <p class="app-shell" style="position: fixed; inset: 0; z-index: 9999; color: red">
+        Cover
+      </p>
+      <p style="font-weight: 700; text-align: center">Safe style</p>
+    `)
+
+    expect(html).toContain('Cover')
+    expect(html).toContain(
+      '<p style="font-weight: 700; text-align: center">Safe style</p>',
+    )
+    expect(html).not.toContain('class=')
+    expect(html).not.toContain('position')
+    expect(html).not.toContain('z-index')
+    expect(html).not.toContain('inset')
+  })
+
   it('normalizes plain text from sanitized HTML', () => {
     expect(stripHtml('<p>Hello</p><p><strong>Gmail</strong></p>')).toBe(
       'Hello Gmail',
@@ -76,5 +99,25 @@ describe('emailSafety', () => {
     expect(analysis.html).toContain(
       '<a href="mailto:hello@example.com">email</a>',
     )
+  })
+
+  it('fails closed to text if the primary sanitizer path is unavailable', () => {
+    vi.spyOn(DOMPurify, 'sanitize').mockImplementation(() => {
+      throw new Error('sanitizer unavailable')
+    })
+
+    const html = sanitizeEmailBodyHtml(`
+      <p>
+        <a href=javascript:alert(1)>Click</a>
+        <img src=x onerror="alert(1)">
+        <template><script>bad</script></template>
+      </p>
+    `)
+
+    expect(html).toContain('Click')
+    expect(html).not.toContain('<')
+    expect(html).not.toContain('javascript:')
+    expect(html).not.toContain('onerror')
+    expect(html).not.toContain('template')
   })
 })

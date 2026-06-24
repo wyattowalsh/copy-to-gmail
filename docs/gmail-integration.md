@@ -32,6 +32,8 @@ Or set `COPY_TO_GMAIL_GOOGLE_OAUTH_CONFIG` to a JSON file:
 
 The local callback path is `/api/gmail/oauth/callback` on the port printed by the CLI.
 
+`COPY_TO_GMAIL_GOOGLE_CLIENT_ID` and `COPY_TO_GMAIL_GOOGLE_CLIENT_SECRET` take precedence. For compatibility, the server also reads `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` when the app-specific names are unset; prefer the app-specific names so unrelated Google credentials are not reused accidentally.
+
 ## Scopes
 
 - `openid` and `email`: display the connected account.

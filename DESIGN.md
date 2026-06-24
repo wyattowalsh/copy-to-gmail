@@ -6,6 +6,12 @@ Copy to Gmail uses `public/icon.png` as the source of truth, but the product UI 
 
 The app stays compose-first. The first screen is the working email studio, not a landing page.
 
+## Product Surfaces
+
+- **Open-source core:** the local CLI app, editor, sanitizer, clipboard writer, local library, theme system, and optional local Gmail Draft sync. This surface must feel complete without a hosted account.
+- **Hosted/SaaS lane:** future managed OAuth, team templates, shared libraries, workspace policy, and account administration. Hosted affordances should live in their own shell or docs rather than competing with the local editor.
+- Shared UI work should keep the editor canvas dominant and avoid turning the local app into a marketing or account-management surface.
+
 ## Source Asset
 
 - Primary icon: `public/icon.png`.
@@ -22,6 +28,7 @@ The app stays compose-first. The first screen is the working email studio, not a
 - Blue is reserved for the copy path and focused controls.
 - Gmail-adjacent red, yellow, and green are functional state colors only: error, caution, and success.
 - Inspector surfaces use subtle borders, spacing, and type hierarchy rather than decorative elevation.
+- Theme presets are a searchable, indexed library, not a gallery. Group them by practical intent and keep Rosé Pine variants named and colored from the official main, dawn, and moon palettes.
 
 ## Color Tokens
 
@@ -78,6 +85,7 @@ The app stays compose-first. The first screen is the working email studio, not a
 ### Composer
 
 - The editor is the dominant workspace.
+- Draft body metrics, source diagnostics, and focus affordances should sit next to the editor instead of being buried in subordinate panels.
 - The editor paper remains white in light mode and high-contrast in dark mode.
 - Metadata, readiness, and actions sit close to the editor without competing with it.
 

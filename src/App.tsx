@@ -3,16 +3,32 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
   type RefObject,
 } from 'react'
 import { EmailEditor, type EmailEditorRef } from '@react-email/editor'
 import '@react-email/editor/themes/default.css'
 import {
+  ChevronDown,
+  CheckCircle2,
+  Copy,
+  Eye,
+  FileCode2,
   LaptopMinimal,
+  Mail,
+  MoreHorizontal,
   Moon,
   Palette,
+  PanelRightClose,
+  PanelRightOpen,
+  PencilLine,
+  RefreshCw,
+  Search,
+  Send,
   Settings2,
   Sun,
+  Type,
+  Users,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -23,13 +39,33 @@ import {
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogOverlay,
+  AlertDialogPortal,
+  AlertDialogTitle,
+} from './components/ui/alert-dialog'
+import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogOverlay,
   DialogPortal,
   DialogTitle,
 } from './components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './components/ui/dropdown-menu'
 import { ToggleGroup, ToggleGroupItem } from './components/ui/toggle-group'
 import { analyzeEmailBody } from './lib/emailSafety'
 import {
@@ -39,11 +75,15 @@ import {
 } from './lib/readiness'
 import {
   createThemeStyle,
+  getThemePresetIndexEntry,
   parseThemeJson,
   resolveTheme,
+  searchThemePresets,
   serializeTheme,
+  THEME_PRESET_CATEGORIES,
   THEME_PRESETS,
   type ThemeDefinition,
+  type ThemePresetCategory,
   type ThemePreference,
 } from './lib/themes'
 import {
@@ -51,10 +91,14 @@ import {
   loadSettings,
   saveSettings,
   type AppSettings,
+  type DefaultPreviewMode,
+  type EditorCanvasSize,
   type EditorMode,
+  type InspectorDefault,
 } from './lib/settings'
 import {
   draftFromEditorState,
+  normalizeRecipientList,
   parseDraftImport,
   serializeDraft,
   type DraftRecipients,
@@ -92,11 +136,19 @@ import {
   type EmailTemplate,
   type VariableSet,
 } from './lib/templates'
+import { cn } from './lib/utils'
 import './App.css'
 
 type CopyState = 'idle' | 'copying' | 'copied' | 'error'
 type MessageTone = 'neutral' | 'success' | 'warning' | 'error'
 type PreviewMode = 'rendered' | 'plain' | 'source'
+type FormFieldKind = 'text' | 'textarea'
+type DraftMetrics = {
+  chars: number
+  links: number
+  warnings: number
+  words: number
+}
 
 type EmailExport = {
   html: string
@@ -107,6 +159,31 @@ type GmailConflictState = {
   localDraft: LocalDraft
   remoteDraft: LocalDraft
   remoteFingerprint: string
+}
+
+type ConfirmDialogState = {
+  title: string
+  description: string
+  confirmLabel: string
+  onConfirm: () => void | Promise<void>
+}
+
+type FormDialogField = {
+  id: string
+  kind: FormFieldKind
+  label: string
+  value: string
+  placeholder?: string
+  rows?: number
+}
+
+type FormDialogState = {
+  title: string
+  description: string
+  submitLabel: string
+  fields: FormDialogField[]
+  error?: string
+  onSubmit: (values: Record<string, string>) => void | Promise<void>
 }
 
 const signatureScope = 'https://www.googleapis.com/auth/gmail.settings.basic'
@@ -126,10 +203,26 @@ function App() {
   const previewOpenerRef = useRef<HTMLElement | null>(null)
   const settingsCloseRef = useRef<HTMLButtonElement>(null)
   const settingsOpenerRef = useRef<HTMLElement | null>(null)
+  const confirmDialogOpenerRef = useRef<HTMLElement | null>(null)
+  const confirmDialogFallbackFocusRef = useRef<HTMLElement | null>(null)
+  const formDialogOpenerRef = useRef<HTMLElement | null>(null)
+  const formDialogFallbackFocusRef = useRef<HTMLElement | null>(null)
+  const moreActionsTriggerRef = useRef<HTMLButtonElement>(null)
   const appContentRef = useRef<HTMLDivElement>(null)
   const autosyncTimerRef = useRef<number | undefined>(undefined)
+  const launchFocusDoneRef = useRef(false)
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings())
   const [editorMode, setEditorMode] = useState<EditorMode>(settings.editorMode)
+  const [isFocusWorkspace, setFocusWorkspace] = useState(
+    settings.focusEditorOnLaunch,
+  )
+  const [isNarrowInspectorViewport, setNarrowInspectorViewport] = useState(() =>
+    getNarrowInspectorViewport(),
+  )
+  const [isCompactComposerViewport, setCompactComposerViewport] = useState(() =>
+    getCompactComposerViewport(),
+  )
+  const [isMetadataOpen, setMetadataOpen] = useState(false)
   const [editorKey, setEditorKey] = useState(0)
   const [editorContent, setEditorContent] = useState(starterContent)
   const [sourceHtml, setSourceHtml] = useState(starterContent.trim())
@@ -139,9 +232,19 @@ function App() {
   const [latestEmail, setLatestEmail] = useState<EmailExport | null>(null)
   const [isPreviewOpen, setPreviewOpen] = useState(false)
   const [isSettingsOpen, setSettingsOpen] = useState(false)
-  const [previewMode, setPreviewMode] = useState<PreviewMode>('rendered')
+  const [isMoreActionsOpen, setMoreActionsOpen] = useState(false)
+  const [previewMode, setPreviewMode] = useState<PreviewMode>(
+    settings.defaultPreviewMode,
+  )
   const [themeJsonDraft, setThemeJsonDraft] = useState('')
   const [themeJsonError, setThemeJsonError] = useState('')
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(
+    null,
+  )
+  const [isConfirmDialogSubmitting, setConfirmDialogSubmitting] =
+    useState(false)
+  const [formDialog, setFormDialog] = useState<FormDialogState | null>(null)
+  const [isFormDialogSubmitting, setFormDialogSubmitting] = useState(false)
   const [draftSubject, setDraftSubject] = useState('')
   const [draftRecipients, setDraftRecipients] = useState<DraftRecipients>({
     bcc: '',
@@ -199,6 +302,34 @@ function App() {
     warnings: readiness.checks.filter((check) => check.state !== 'pass').length,
     words: pasteableText ? pasteableText.split(/\s+/).length : 0,
   }
+  const readinessIssueCount = draftMetrics.warnings
+  const libraryCounts = {
+    signatures: library.signatures.length,
+    templates: library.templates.length,
+    variableSets: library.variableSets.length,
+  }
+  const isInspectorCollapsed =
+    isFocusWorkspace ||
+    settings.inspectorDefault === 'collapsed' ||
+    (settings.inspectorDefault === 'auto' && isNarrowInspectorViewport)
+  const showGmailControls =
+    settings.keepGmailControlsVisible ||
+    gmailStatus.connected ||
+    Boolean(gmailLink || gmailConflict)
+  const metadataRecipientCount = getRecipientCount(draftRecipients)
+  const metadataSubjectSummary = draftSubject.trim() || 'No subject'
+  const metadataRecipientSummary = metadataRecipientCount
+    ? formatCount(metadataRecipientCount, 'recipient')
+    : 'No recipients'
+  const isMetadataDisclosureActive = isCompactComposerViewport
+  const isMetadataCollapsed = isMetadataDisclosureActive && !isMetadataOpen
+  const isMoreActionsCompact = editorMode === 'source'
+  const isMoreActionsNarrow = isNarrowInspectorViewport
+  const moreActionsPlacement = isMoreActionsCompact
+    ? 'compact'
+    : isMoreActionsNarrow
+      ? 'narrow'
+      : 'standard'
 
   const openGmailUrl = buildGmailDraftUrl({
     accountEmail: gmailStatus.email ?? gmailLink?.accountEmail,
@@ -270,6 +401,34 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const media = window.matchMedia?.('(max-width: 1180px)')
+
+    if (!media) {
+      return
+    }
+
+    const updateViewport = () => setNarrowInspectorViewport(media.matches)
+    updateViewport()
+    media.addEventListener('change', updateViewport)
+
+    return () => media.removeEventListener('change', updateViewport)
+  }, [])
+
+  useEffect(() => {
+    const media = window.matchMedia?.('(max-width: 760px)')
+
+    if (!media) {
+      return
+    }
+
+    const updateViewport = () => setCompactComposerViewport(media.matches)
+    updateViewport()
+    media.addEventListener('change', updateViewport)
+
+    return () => media.removeEventListener('change', updateViewport)
+  }, [])
+
+  useEffect(() => {
     if (isSettingsOpen) {
       settingsCloseRef.current?.focus()
     }
@@ -282,9 +441,16 @@ function App() {
   }, [isPreviewOpen])
 
   useEffect(() => {
+    if (isPreviewOpen || isSettingsOpen) {
+      setMoreActionsOpen(false)
+    }
+  }, [isPreviewOpen, isSettingsOpen])
+
+  useEffect(() => {
     const appContent = appContentRef.current
     const previousOverflow = document.body.style.overflow
-    const isLayerOpen = isPreviewOpen || isSettingsOpen
+    const isLayerOpen =
+      isPreviewOpen || isSettingsOpen || Boolean(confirmDialog || formDialog)
 
     if (isLayerOpen) {
       document.body.style.overflow = 'hidden'
@@ -300,7 +466,7 @@ function App() {
       appContent?.removeAttribute('aria-hidden')
       if (appContent) appContent.inert = false
     }
-  }, [isPreviewOpen, isSettingsOpen])
+  }, [confirmDialog, formDialog, isPreviewOpen, isSettingsOpen])
 
   async function handleCopyForGmail() {
     await runCopyAction(async () => {
@@ -350,6 +516,8 @@ function App() {
     try {
       await requireCurrentEmail()
       previewOpenerRef.current = getActiveHTMLElement()
+      setMoreActionsOpen(false)
+      setPreviewMode(settings.defaultPreviewMode)
       setPreviewOpen(true)
       setStatus('Previewing the sanitized Gmail body.', 'neutral')
     } catch (error) {
@@ -364,6 +532,7 @@ function App() {
       const html = sanitizeEmailBodyHtml(email.html)
       setSourceHtml(html)
       setEditorMode('source')
+      setMoreActionsOpen(false)
       updateSettings({ editorMode: 'source' })
       setStatus(
         'Source mode is ready. Edits stay in code until you apply them.',
@@ -376,6 +545,7 @@ function App() {
 
   function switchToVisualMode() {
     setEditorMode('visual')
+    setMoreActionsOpen(false)
     updateSettings({ editorMode: 'visual' })
     setStatus('Visual mode is active.', 'neutral')
   }
@@ -397,6 +567,7 @@ function App() {
     setEditorContent(html)
     setEditorKey((key) => key + 1)
     setEditorMode('visual')
+    setMoreActionsOpen(false)
     updateSettings({ editorMode: 'visual' })
     setStatus('Applied sanitized source HTML to the visual editor.', 'success')
   }
@@ -425,16 +596,7 @@ function App() {
     setStatus('Cleared rich formatting into simple paragraphs.', 'success')
   }
 
-  function handleResetStarter() {
-    const hasDraft = Boolean(activeEmail?.html || sourceHtml.trim())
-
-    if (
-      hasDraft &&
-      !window.confirm('Reset the current draft to the starter email?')
-    ) {
-      return
-    }
-
+  function resetStarterDraft() {
     const email = buildSourceEmail(starterContent)
     setSourceHtml(starterContent.trim())
     setEditorContent(starterContent)
@@ -444,13 +606,25 @@ function App() {
     setStatus('Starter draft restored.', 'success')
   }
 
-  function handleImportDraftJson() {
-    const raw = window.prompt('Paste draft JSON exported from Copy to Gmail:')
+  function handleResetStarter() {
+    const hasDraft = Boolean(activeEmail?.html || sourceHtml.trim())
 
-    if (!raw) {
+    if (!hasDraft) {
+      resetStarterDraft()
       return
     }
 
+    setMoreActionsOpen(false)
+    openConfirmDialog({
+      title: 'Reset starter draft?',
+      description:
+        'This replaces the current local draft body with the starter email. Subject, recipients, and local library items are not changed.',
+      confirmLabel: 'Reset draft',
+      onConfirm: resetStarterDraft,
+    })
+  }
+
+  function importDraftJson(raw: string) {
     try {
       const draft = parseDraftImport(JSON.parse(raw) as unknown)
       const html = sanitizeEmailBodyHtml(draft.html)
@@ -467,11 +641,37 @@ function App() {
       setLatestEmail(email)
       setStatus('Imported draft JSON into the local composer.', 'success')
     } catch (error) {
-      setStatus(
+      throw new Error(
         error instanceof Error ? error.message : 'Unable to import draft JSON.',
-        'error',
+        { cause: error },
       )
     }
+  }
+
+  function handleImportDraftJson() {
+    setMoreActionsOpen(false)
+    openFormDialog({
+      title: 'Import draft JSON',
+      description:
+        'Paste a draft exported from Copy to Gmail. Import replaces the local composer fields only after the JSON validates.',
+      submitLabel: 'Import draft',
+      fields: [
+        {
+          id: 'json',
+          kind: 'textarea',
+          label: 'Draft JSON',
+          value: '',
+          rows: 10,
+        },
+      ],
+      onSubmit: ({ json }) => {
+        if (!json.trim()) {
+          throw new Error('Paste draft JSON before importing.')
+        }
+
+        importDraftJson(json)
+      },
+    })
   }
 
   async function refreshLibrary() {
@@ -671,24 +871,30 @@ function App() {
     setGmailMessage('Replaced local content with the current Gmail draft.')
   }
 
-  async function handleOverwriteGmailConflict() {
+  function handleOverwriteGmailConflict() {
     if (!gmailConflict || !gmailLink?.draftId) {
       return
     }
 
-    if (
-      !window.confirm('Overwrite the changed Gmail draft with local edits?')
-    ) {
-      return
-    }
+    openConfirmDialog({
+      title: 'Overwrite Gmail draft?',
+      description:
+        'This replaces the changed Gmail draft with your local edits. Use Save new version if you want to keep both drafts.',
+      confirmLabel: 'Overwrite Gmail',
+      onConfirm: async () => {
+        if (!gmailConflict || !gmailLink?.draftId) {
+          return
+        }
 
-    await runGmailAction(async () => {
-      const result = await updateGmailDraft(
-        gmailLink.draftId,
-        gmailConflict.localDraft,
-      )
-      applySyncedGmailLink(result.draft.gmail, result.fingerprint)
-      setGmailMessage('Overwrote Gmail with the local draft.')
+        await runGmailAction(async () => {
+          const result = await updateGmailDraft(
+            gmailLink.draftId,
+            gmailConflict.localDraft,
+          )
+          applySyncedGmailLink(result.draft.gmail, result.fingerprint)
+          setGmailMessage('Overwrote Gmail with the local draft.')
+        })
+      },
     })
   }
 
@@ -728,23 +934,42 @@ function App() {
     }
   }
 
-  async function handleSaveTemplate() {
-    const name = window.prompt('Template name:')
+  function handleSaveTemplate() {
+    openFormDialog({
+      title: 'Save template',
+      description:
+        'Save the current local draft as a reusable template in the local library.',
+      submitLabel: 'Save template',
+      fields: [
+        {
+          id: 'name',
+          kind: 'text',
+          label: 'Template name',
+          value: '',
+        },
+      ],
+      onSubmit: async ({ name }) => {
+        const templateName = name.trim()
 
-    if (!name) {
-      return
-    }
+        if (!templateName) {
+          throw new Error('Name the template before saving.')
+        }
 
-    const draft = await requireCurrentDraft('pending')
-    const template = createTemplateFromDraft({
-      draft,
-      id: createBrowserId('tpl'),
-      name,
-      updatedAt: new Date().toISOString(),
+        const draft = await requireCurrentDraft('pending')
+        const template = createTemplateFromDraft({
+          draft,
+          id: createBrowserId('tpl'),
+          name: templateName,
+          updatedAt: new Date().toISOString(),
+        })
+        const next = {
+          ...library,
+          templates: [...library.templates, template],
+        }
+        setSelectedTemplateId(template.id)
+        await persistLibrary(next, `Saved template “${template.name}”.`)
+      },
     })
-    const next = { ...library, templates: [...library.templates, template] }
-    setSelectedTemplateId(template.id)
-    await persistLibrary(next, `Saved template “${template.name}”.`)
   }
 
   function handleApplyTemplate() {
@@ -753,10 +978,34 @@ function App() {
       return
     }
 
-    const values = collectPlaceholderValues(
+    const fields = collectPlaceholderFields(
       selectedTemplate,
       selectedVariableSet?.values ?? {},
     )
+
+    if (fields.length) {
+      openFormDialog({
+        title: 'Fill template variables',
+        description:
+          'These values are inserted into the selected template before it replaces the local draft.',
+        submitLabel: 'Apply template',
+        fields,
+        onSubmit: (values) => {
+          applySelectedTemplate(values)
+        },
+      })
+      return
+    }
+
+    applySelectedTemplate({})
+  }
+
+  function applySelectedTemplate(values: Record<string, string>) {
+    if (!selectedTemplate) {
+      setLibraryMessage('Choose a template before applying it.')
+      return
+    }
+
     const signature = selectedTemplate.selectedSignatureId
       ? library.signatures.find(
           (candidate) => candidate.id === selectedTemplate.selectedSignatureId,
@@ -789,23 +1038,48 @@ function App() {
     setLibraryMessage(`Copied template “${selectedTemplate.name}”.`)
   }
 
-  async function handleAddSignature() {
-    const name = window.prompt('Signature name:')
-    const html = name ? window.prompt('Signature HTML:') : null
+  function handleAddSignature() {
+    openFormDialog({
+      title: 'Add local signature',
+      description:
+        'Save a reusable HTML signature in the local library. The HTML is sanitized when inserted into a draft.',
+      submitLabel: 'Save signature',
+      fields: [
+        {
+          id: 'name',
+          kind: 'text',
+          label: 'Signature name',
+          value: '',
+        },
+        {
+          id: 'html',
+          kind: 'textarea',
+          label: 'Signature HTML',
+          value: '',
+          rows: 8,
+        },
+      ],
+      onSubmit: async ({ html, name }) => {
+        const signatureName = name.trim()
 
-    if (!name || !html) {
-      return
-    }
+        if (!signatureName || !html.trim()) {
+          throw new Error('Add both a signature name and HTML.')
+        }
 
-    const signature = createLocalSignature({
-      html,
-      id: createBrowserId('sig'),
-      name,
-      updatedAt: new Date().toISOString(),
+        const signature = createLocalSignature({
+          html,
+          id: createBrowserId('sig'),
+          name: signatureName,
+          updatedAt: new Date().toISOString(),
+        })
+        const next = {
+          ...library,
+          signatures: [...library.signatures, signature],
+        }
+        setSelectedSignatureId(signature.id)
+        await persistLibrary(next, `Saved signature “${signature.name}”.`)
+      },
     })
-    const next = { ...library, signatures: [...library.signatures, signature] }
-    setSelectedSignatureId(signature.id)
-    await persistLibrary(next, `Saved signature “${signature.name}”.`)
   }
 
   async function handleInsertSignature() {
@@ -881,33 +1155,57 @@ function App() {
     }
   }
 
-  async function handleSaveVariableSet() {
-    const name = window.prompt('Variable set name:')
-    const raw = name
-      ? window.prompt('Variable JSON, for example {"first_name":"Ada"}:')
-      : null
+  function handleSaveVariableSet() {
+    openFormDialog({
+      title: 'Add variable set',
+      description:
+        'Save a JSON object of string values for template placeholders.',
+      submitLabel: 'Save set',
+      fields: [
+        {
+          id: 'name',
+          kind: 'text',
+          label: 'Variable set name',
+          value: '',
+        },
+        {
+          id: 'json',
+          kind: 'textarea',
+          label: 'Variable JSON',
+          placeholder: '{"first_name":"Ada"}',
+          value: '',
+          rows: 8,
+        },
+      ],
+      onSubmit: async ({ json, name }) => {
+        const variableSetName = name.trim()
 
-    if (!name || !raw) {
-      return
-    }
+        if (!variableSetName || !json.trim()) {
+          throw new Error('Add a variable set name and JSON object.')
+        }
 
-    try {
-      const values = parseStringRecord(JSON.parse(raw) as unknown)
-      const variableSet: VariableSet = {
-        id: createBrowserId('vars'),
-        name,
-        updatedAt: new Date().toISOString(),
-        values,
-      }
-      const next = {
-        ...library,
-        variableSets: [...library.variableSets, variableSet],
-      }
-      setSelectedVariableSetId(variableSet.id)
-      await persistLibrary(next, `Saved variable set “${variableSet.name}”.`)
-    } catch {
-      setLibraryMessage('Variable set import needs a valid JSON object.')
-    }
+        try {
+          const values = parseStringRecord(JSON.parse(json) as unknown)
+          const variableSet: VariableSet = {
+            id: createBrowserId('vars'),
+            name: variableSetName,
+            updatedAt: new Date().toISOString(),
+            values,
+          }
+          const next = {
+            ...library,
+            variableSets: [...library.variableSets, variableSet],
+          }
+          setSelectedVariableSetId(variableSet.id)
+          await persistLibrary(
+            next,
+            `Saved variable set “${variableSet.name}”.`,
+          )
+        } catch {
+          throw new Error('Variable set import needs a valid JSON object.')
+        }
+      },
+    })
   }
 
   async function handleCopySelectedVariableSet() {
@@ -932,22 +1230,37 @@ function App() {
     setLibraryMessage('Copied the whole local library bundle.')
   }
 
-  async function handleImportLibrary() {
-    const raw = window.prompt('Paste a Copy to Gmail library JSON bundle:')
+  function handleImportLibrary() {
+    openFormDialog({
+      title: 'Import library bundle',
+      description:
+        'Paste a Copy to Gmail library bundle. Valid templates, signatures, and variable sets merge into the local library.',
+      submitLabel: 'Import bundle',
+      fields: [
+        {
+          id: 'json',
+          kind: 'textarea',
+          label: 'Library JSON',
+          value: '',
+          rows: 10,
+        },
+      ],
+      onSubmit: async ({ json }) => {
+        if (!json.trim()) {
+          throw new Error('Paste a library JSON bundle before importing.')
+        }
 
-    if (!raw) {
-      return
-    }
-
-    try {
-      const imported = parseLibraryBundle(JSON.parse(raw) as unknown)
-      await persistLibrary(
-        mergeLibraryBundles(library, imported),
-        'Imported the library bundle.',
-      )
-    } catch {
-      setLibraryMessage('Library import needs valid JSON.')
-    }
+        try {
+          const imported = parseLibraryBundle(JSON.parse(json) as unknown)
+          await persistLibrary(
+            mergeLibraryBundles(library, imported),
+            'Imported the library bundle.',
+          )
+        } catch {
+          throw new Error('Library import needs valid JSON.')
+        }
+      },
+    })
   }
 
   function openSettings() {
@@ -1005,11 +1318,136 @@ function App() {
       selectedThemeId: theme.id,
       themePreference: theme.mode,
     })
+    setThemeJsonDraft(serializeTheme(theme))
+    setThemeJsonError('')
     setStatus(`Applied ${theme.name}.`, 'success')
   }
 
   function updateSettings(patch: Partial<AppSettings>) {
     setSettings((current) => ({ ...current, ...patch }))
+  }
+
+  function openConfirmDialog(dialog: ConfirmDialogState) {
+    const opener = getActiveHTMLElement()
+    confirmDialogOpenerRef.current = opener
+    confirmDialogFallbackFocusRef.current =
+      isMoreActionsOpen || opener?.closest('[role="menuitem"]')
+        ? moreActionsTriggerRef.current
+        : null
+    setConfirmDialog(dialog)
+  }
+
+  function closeConfirmDialog() {
+    setConfirmDialog(null)
+    restoreFocus(confirmDialogOpenerRef, confirmDialogFallbackFocusRef)
+  }
+
+  function openFormDialog(dialog: FormDialogState) {
+    const opener = getActiveHTMLElement()
+    formDialogOpenerRef.current = opener
+    formDialogFallbackFocusRef.current =
+      isMoreActionsOpen || opener?.closest('[role="menuitem"]')
+        ? moreActionsTriggerRef.current
+        : null
+    setFormDialog(dialog)
+  }
+
+  function closeFormDialog() {
+    setFormDialog(null)
+    restoreFocus(formDialogOpenerRef, formDialogFallbackFocusRef)
+  }
+
+  function updateFormDialogField(fieldId: string, value: string) {
+    setFormDialog((current) =>
+      current
+        ? {
+            ...current,
+            error: '',
+            fields: current.fields.map((field) =>
+              field.id === fieldId ? { ...field, value } : field,
+            ),
+          }
+        : current,
+    )
+  }
+
+  async function submitFormDialog() {
+    if (!formDialog || isFormDialogSubmitting) {
+      return
+    }
+
+    const currentDialog = formDialog
+    const values = Object.fromEntries(
+      currentDialog.fields.map((field) => [field.id, field.value]),
+    )
+
+    setFormDialogSubmitting(true)
+    try {
+      await currentDialog.onSubmit(values)
+      closeFormDialog()
+    } catch (error) {
+      setFormDialog((current) =>
+        current === currentDialog
+          ? {
+              ...current,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'Unable to complete this action.',
+            }
+          : current,
+      )
+    } finally {
+      setFormDialogSubmitting(false)
+    }
+  }
+
+  async function submitConfirmDialog() {
+    if (!confirmDialog || isConfirmDialogSubmitting) {
+      return
+    }
+
+    const currentDialog = confirmDialog
+
+    setConfirmDialogSubmitting(true)
+    try {
+      await currentDialog.onConfirm()
+      closeConfirmDialog()
+    } finally {
+      setConfirmDialogSubmitting(false)
+    }
+  }
+
+  function handleResetSettings() {
+    const reset = () => {
+      const nextSettings = { ...defaultSettings }
+      const nextTheme = resolveTheme(
+        nextSettings.themePreference,
+        nextSettings.selectedThemeId,
+        undefined,
+        prefersDark,
+      )
+      setSettings(nextSettings)
+      setThemeJsonDraft(serializeTheme(nextTheme))
+      setThemeJsonError('')
+      setStatus('Settings reset to defaults.', 'success')
+    }
+
+    const isThemeJsonDirty =
+      themeJsonDraft.trim() !== serializeTheme(activeTheme).trim()
+
+    if (settings.customTheme || themeJsonError || isThemeJsonDirty) {
+      openConfirmDialog({
+        title: 'Reset settings?',
+        description:
+          'This restores the default app settings and clears any custom theme JSON in this dialog.',
+        confirmLabel: 'Reset settings',
+        onConfirm: reset,
+      })
+      return
+    }
+
+    reset()
   }
 
   async function runCopyAction(action: () => Promise<void>) {
@@ -1039,12 +1477,27 @@ function App() {
     editorRef.current = ref
     labelEditorSurface()
     void refreshEmailCache(ref)
+
+    if (settings.focusEditorOnLaunch && !launchFocusDoneRef.current) {
+      launchFocusDoneRef.current = true
+      setFocusWorkspace(true)
+      window.requestAnimationFrame(focusEditorSurface)
+    }
   }
 
   function handleEditorUpdate(ref: EmailEditorRef) {
     editorRef.current = ref
     labelEditorSurface()
     void refreshEmailCache(ref)
+  }
+
+  function focusEditorSurface() {
+    const target =
+      editorMode === 'source'
+        ? document.getElementById('source-html')
+        : document.querySelector<HTMLElement>('.email-editor .tiptap')
+
+    target?.focus()
   }
 
   async function refreshEmailCache(ref = editorRef.current) {
@@ -1159,7 +1612,10 @@ function App() {
   return (
     <main
       className="app-shell"
+      data-editor-canvas={settings.editorCanvas}
       data-density={activeTheme.tokens.density}
+      data-focus-workspace={isFocusWorkspace ? 'true' : undefined}
+      data-inspector={isInspectorCollapsed ? 'collapsed' : 'expanded'}
       data-theme-mode={activeTheme.mode}
       style={themeStyle}
     >
@@ -1175,12 +1631,14 @@ function App() {
           </div>
           <div className="chrome-actions">
             <ThemeSwitcher
+              hasCustomTheme={Boolean(settings.customTheme)}
               preference={settings.themePreference}
+              themeStyle={themeStyle}
               onPreference={handleThemePreference}
             />
             <Button
               type="button"
-              variant="icon"
+              variant="secondary"
               size="icon"
               className="icon-button settings-action"
               onClick={openSettings}
@@ -1198,96 +1656,150 @@ function App() {
             aria-labelledby="editor-heading"
           >
             <div className="editor-frame">
-              <aside className="editor-rail" aria-label="Editor tools">
-                <div className="rail-section">
-                  <span className="field-label">Mode</span>
-                  <ModeSwitcher
-                    value={editorMode}
-                    className="mode-switcher-rail"
-                    onMode={(mode) => {
-                      if (mode === 'source') {
-                        void switchToSourceMode()
-                        return
-                      }
-
-                      switchToVisualMode()
-                    }}
-                  />
-                </div>
-                <div className="rail-stat">
-                  <strong>{readiness.status}</strong>
-                </div>
-              </aside>
-
               <div className="editor-main">
-                <div className="composer-topbar floating-editor-header">
-                  <div>
-                    <span className="field-label">Draft</span>
-                    <h2 id="editor-heading" className="field-value">
-                      Untitled Gmail body
-                    </h2>
-                  </div>
-                  <output
-                    className={`status status-${messageTone}`}
-                    aria-atomic="true"
-                    aria-live={messageTone === 'error' ? 'assertive' : 'polite'}
-                    role={messageTone === 'error' ? 'alert' : 'status'}
+                <WorkflowStrip
+                  busy={gmailBusy}
+                  link={gmailLink}
+                  message={message}
+                  messageTone={messageTone}
+                  openUrl={openGmailUrl}
+                  readiness={readiness}
+                  showControls={showGmailControls}
+                  syncMessage={gmailMessage}
+                  syncStatus={gmailStatus}
+                  themeStyle={themeStyle}
+                  onConnect={handleGmailConnect}
+                  onCreateDraft={() => void handleCreateGmailDraft()}
+                  onLoadDrafts={() => void handleLoadGmailDrafts()}
+                  onRefresh={() => void refreshGmailStatus()}
+                  onUpdateDraft={() => void handleUpdateGmailDraft()}
+                />
+                {isFocusWorkspace ? null : (
+                  <section
+                    className="metadata-shell"
+                    aria-label="Draft metadata"
+                    data-metadata-state={
+                      isMetadataCollapsed ? 'collapsed' : 'expanded'
+                    }
                   >
-                    {message}
-                  </output>
-                </div>
-                <ReadinessCompact report={readiness} />
-                <div className="metadata-grid" aria-label="Draft metadata">
-                  <label className="metadata-field metadata-field-subject">
-                    <span className="field-label">Subject</span>
-                    <input
-                      type="text"
-                      value={draftSubject}
-                      onChange={(event) => setDraftSubject(event.target.value)}
-                      placeholder="Add a Gmail subject"
-                    />
-                  </label>
-                  <label className="metadata-field">
-                    <span className="field-label">To</span>
-                    <input
-                      type="text"
-                      value={draftRecipients.to}
-                      onChange={(event) =>
-                        setDraftRecipients((current) => ({
-                          ...current,
-                          to: event.target.value,
-                        }))
-                      }
-                      placeholder="person@example.com"
-                    />
-                  </label>
-                  <label className="metadata-field">
-                    <span className="field-label">Cc</span>
-                    <input
-                      type="text"
-                      value={draftRecipients.cc}
-                      onChange={(event) =>
-                        setDraftRecipients((current) => ({
-                          ...current,
-                          cc: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="metadata-field">
-                    <span className="field-label">Bcc</span>
-                    <input
-                      type="text"
-                      value={draftRecipients.bcc}
-                      onChange={(event) =>
-                        setDraftRecipients((current) => ({
-                          ...current,
-                          bcc: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                </div>
+                    {isMetadataDisclosureActive ? (
+                      <button
+                        type="button"
+                        className="metadata-disclosure"
+                        aria-expanded={isMetadataOpen}
+                        aria-controls="draft-metadata-fields"
+                        aria-label={
+                          isMetadataOpen
+                            ? `Collapse subject and recipients, ${metadataSubjectSummary}, ${metadataRecipientSummary}`
+                            : `Expand subject and recipients, ${metadataSubjectSummary}, ${metadataRecipientSummary}`
+                        }
+                        onClick={() => setMetadataOpen((current) => !current)}
+                      >
+                        <span className="metadata-disclosure-label">
+                          Subject and recipients
+                        </span>
+                        <span
+                          className="metadata-disclosure-summary"
+                          aria-hidden="true"
+                        >
+                          <span>{metadataSubjectSummary}</span>
+                          <span>{metadataRecipientSummary}</span>
+                        </span>
+                        <ChevronDown
+                          aria-hidden="true"
+                          className="metadata-disclosure-icon"
+                          size={16}
+                          strokeWidth={2.1}
+                        />
+                      </button>
+                    ) : null}
+                    <div
+                      id="draft-metadata-fields"
+                      className="metadata-grid"
+                      hidden={isMetadataCollapsed}
+                    >
+                      <label className="metadata-field metadata-field-subject">
+                        <span className="field-label">
+                          <Type
+                            aria-hidden="true"
+                            size={12}
+                            strokeWidth={2.2}
+                          />
+                          Subject
+                        </span>
+                        <input
+                          type="text"
+                          value={draftSubject}
+                          onChange={(event) =>
+                            setDraftSubject(event.target.value)
+                          }
+                          placeholder="Add a Gmail subject"
+                        />
+                      </label>
+                      <label className="metadata-field metadata-field-to">
+                        <span className="field-label">
+                          <Send
+                            aria-hidden="true"
+                            size={12}
+                            strokeWidth={2.2}
+                          />
+                          To
+                        </span>
+                        <input
+                          type="text"
+                          value={draftRecipients.to}
+                          onChange={(event) =>
+                            setDraftRecipients((current) => ({
+                              ...current,
+                              to: event.target.value,
+                            }))
+                          }
+                          placeholder="person@example.com"
+                        />
+                      </label>
+                      <label className="metadata-field metadata-field-cc">
+                        <span className="field-label">
+                          <Users
+                            aria-hidden="true"
+                            size={12}
+                            strokeWidth={2.2}
+                          />
+                          Cc
+                        </span>
+                        <input
+                          type="text"
+                          value={draftRecipients.cc}
+                          onChange={(event) =>
+                            setDraftRecipients((current) => ({
+                              ...current,
+                              cc: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="metadata-field metadata-field-bcc">
+                        <span className="field-label">
+                          <Users
+                            aria-hidden="true"
+                            size={12}
+                            strokeWidth={2.2}
+                          />
+                          Bcc
+                        </span>
+                        <input
+                          type="text"
+                          value={draftRecipients.bcc}
+                          onChange={(event) =>
+                            setDraftRecipients((current) => ({
+                              ...current,
+                              bcc: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                  </section>
+                )}
                 <div
                   className="editor-action-bar floating-toolbelt"
                   role="group"
@@ -1301,6 +1813,7 @@ function App() {
                       onClick={() => void handleCopyForGmail()}
                       disabled={copyState === 'copying'}
                     >
+                      <Copy aria-hidden="true" strokeWidth={2.1} />
                       {copyLabel}
                     </Button>
                     <Button
@@ -1310,6 +1823,7 @@ function App() {
                       aria-label="Open preview drawer"
                       onClick={() => void handlePreviewBody()}
                     >
+                      <Eye aria-hidden="true" strokeWidth={2.1} />
                       Preview
                     </Button>
                     <Button
@@ -1318,75 +1832,118 @@ function App() {
                       className="secondary-action"
                       onClick={() => void handleValidateNow()}
                     >
+                      <CheckCircle2 aria-hidden="true" strokeWidth={2.1} />
                       Validate
                     </Button>
                   </div>
-                  <details className="tool-menu tool-menu-more">
-                    <summary>More actions</summary>
-                    <div className="tool-menu-panel">
-                      <span className="tool-menu-label">Copy variants</span>
+                  <DropdownMenu
+                    modal={false}
+                    open={isMoreActionsOpen}
+                    onOpenChange={setMoreActionsOpen}
+                  >
+                    <DropdownMenuTrigger asChild>
                       <Button
+                        ref={moreActionsTriggerRef}
                         type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="secondary-action"
-                        onClick={() => void handleCopyPlainText()}
+                        variant="secondary"
+                        className="tool-menu-trigger"
+                        aria-label="More actions"
                       >
+                        <MoreHorizontal aria-hidden="true" strokeWidth={2.1} />
+                        <span className="tool-menu-label-full">
+                          More actions
+                        </span>
+                        <span className="tool-menu-label-short" aria-hidden>
+                          More
+                        </span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align={
+                        isMoreActionsCompact || isMoreActionsNarrow
+                          ? 'end'
+                          : 'start'
+                      }
+                      className={
+                        isMoreActionsCompact
+                          ? 'tool-menu-panel-compact'
+                          : undefined
+                      }
+                      data-menu-placement={moreActionsPlacement}
+                      side={
+                        isMoreActionsCompact
+                          ? 'top'
+                          : isMoreActionsNarrow
+                            ? 'bottom'
+                            : 'right'
+                      }
+                      style={themeStyle}
+                    >
+                      <DropdownMenuLabel>Copy variants</DropdownMenuLabel>
+                      <DropdownMenuItem
+                        onSelect={() => void handleCopyPlainText()}
+                      >
+                        <Type aria-hidden="true" strokeWidth={2.1} />
                         Plain text
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="secondary-action"
-                        onClick={() => void handleCopySanitizedHtml()}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={() => void handleCopySanitizedHtml()}
                       >
+                        <FileCode2 aria-hidden="true" strokeWidth={2.1} />
                         Sanitized HTML
-                      </Button>
-                      <span className="tool-menu-label">Draft tools</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="secondary-action"
-                        onClick={() => void handleExportDraftJson()}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>Draft tools</DropdownMenuLabel>
+                      <DropdownMenuItem
+                        onSelect={() => void handleExportDraftJson()}
                       >
+                        <FileCode2 aria-hidden="true" strokeWidth={2.1} />
                         Export JSON
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="secondary-action"
-                        onClick={handleImportDraftJson}
-                      >
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={handleImportDraftJson}>
+                        <FileCode2 aria-hidden="true" strokeWidth={2.1} />
                         Import JSON
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="secondary-action"
-                        onClick={() => void handleClearFormatting()}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={() => void handleClearFormatting()}
                       >
+                        <PencilLine aria-hidden="true" strokeWidth={2.1} />
                         Clear formatting
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="secondary-action"
-                        onClick={handleResetStarter}
-                      >
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={handleResetStarter}>
+                        <RefreshCw aria-hidden="true" strokeWidth={2.1} />
                         Reset starter
-                      </Button>
-                    </div>
-                  </details>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 <p id="editor-help" className="sr-only">
                   Compose the email body. Select text for formatting, type slash
                   for blocks, or switch to Source mode to paste HTML.
                 </p>
+                <EditorCommandBar
+                  isFocusWorkspace={isFocusWorkspace}
+                  metrics={draftMetrics}
+                  mode={editorMode}
+                  showMetrics={settings.showEditorMetrics}
+                  sourceStats={{
+                    blockedElements: sourceAnalysis.unsupportedElements.length,
+                    plainTextChars: sourceAnalysis.text.length,
+                    unsafeLinks: sourceAnalysis.unsafeLinks.length,
+                  }}
+                  onFocusWorkspace={() =>
+                    setFocusWorkspace((current) => !current)
+                  }
+                  onFocusEditor={focusEditorSurface}
+                  onMode={(mode) => {
+                    if (mode === 'source') {
+                      void switchToSourceMode()
+                      return
+                    }
+
+                    switchToVisualMode()
+                  }}
+                />
                 <div className="editor-stage">
                   {editorMode === 'visual' ? (
                     <EmailEditor
@@ -1444,27 +2001,32 @@ function App() {
             </div>
           </section>
 
-          <aside
-            className="side-panel floating-inspector"
-            aria-label="Gmail readiness and preview tools"
+          <InspectorPanel
+            collapsed={isInspectorCollapsed}
+            gmailLabel={getGmailWorkflowLabel(gmailStatus, gmailLink)}
+            libraryCounts={libraryCounts}
+            readinessIssueCount={readinessIssueCount}
+            readinessStatus={readiness.status}
+            onToggle={() => {
+              updateSettings({
+                inspectorDefault: isInspectorCollapsed
+                  ? 'expanded'
+                  : 'collapsed',
+              })
+            }}
           >
             <GmailPanel
               busy={gmailBusy}
               drafts={gmailDrafts}
               link={gmailLink}
               message={gmailMessage}
-              openUrl={openGmailUrl}
               status={gmailStatus}
-              onConnect={handleGmailConnect}
-              onCreateDraft={() => void handleCreateGmailDraft()}
               onDisconnect={() => void handleGmailDisconnect()}
               onLoadDraft={(id) => void handleLoadGmailDraft(id)}
-              onLoadDrafts={() => void handleLoadGmailDrafts()}
-              onRefresh={() => void refreshGmailStatus()}
-              onUpdateDraft={() => void handleUpdateGmailDraft()}
             />
             {gmailConflict ? (
               <ConflictPanel
+                busy={gmailBusy}
                 conflict={gmailConflict}
                 onCancel={handleCancelConflict}
                 onOverwrite={() => void handleOverwriteGmailConflict()}
@@ -1472,6 +2034,7 @@ function App() {
                 onSaveNew={() => void handleSaveNewConflictVersion()}
               />
             ) : null}
+            <ReadinessPanel report={readiness} />
             <LibraryPanel
               busy={libraryBusy}
               canImportGmailSignatures={canImportGmailSignatures}
@@ -1495,29 +2058,7 @@ function App() {
               onSelectTemplate={setSelectedTemplateId}
               onSelectVariableSet={setSelectedVariableSetId}
             />
-            <ReadinessPanel report={readiness} />
-
-            <section className="panel-card metrics-card">
-              <div className="panel-card-header">
-                <span className="field-label">Draft metrics</span>
-                <strong>{draftMetrics.words} words</strong>
-              </div>
-              <dl className="metrics-list">
-                <div>
-                  <dt>Characters</dt>
-                  <dd>{draftMetrics.chars}</dd>
-                </div>
-                <div>
-                  <dt>Links</dt>
-                  <dd>{draftMetrics.links}</dd>
-                </div>
-                <div>
-                  <dt>Warnings</dt>
-                  <dd>{draftMetrics.warnings}</dd>
-                </div>
-              </dl>
-            </section>
-          </aside>
+          </InspectorPanel>
         </div>
       </div>
 
@@ -1547,12 +2088,419 @@ function App() {
           onClose={closeSettings}
           onCopyThemeJson={() => void handleCopyThemeJson()}
           onPresetTheme={handleThemePreset}
+          onResetSettings={handleResetSettings}
           onSettings={updateSettings}
           onThemeJsonDraft={setThemeJsonDraft}
           onThemePreference={handleThemePreference}
         />
       ) : null}
+
+      {confirmDialog ? (
+        <ConfirmDialog
+          dialog={confirmDialog}
+          isSubmitting={isConfirmDialogSubmitting}
+          themeStyle={themeStyle}
+          onClose={() => {
+            if (!isConfirmDialogSubmitting) {
+              closeConfirmDialog()
+            }
+          }}
+          onConfirm={() => {
+            void submitConfirmDialog()
+          }}
+        />
+      ) : null}
+
+      {formDialog ? (
+        <FormDialog
+          dialog={formDialog}
+          isSubmitting={isFormDialogSubmitting}
+          themeStyle={themeStyle}
+          onChangeField={updateFormDialogField}
+          onClose={() => {
+            if (!isFormDialogSubmitting) {
+              closeFormDialog()
+            }
+          }}
+          onSubmit={() => void submitFormDialog()}
+        />
+      ) : null}
     </main>
+  )
+}
+
+function EditorCommandBar({
+  isFocusWorkspace,
+  metrics,
+  mode,
+  showMetrics,
+  sourceStats,
+  onFocusEditor,
+  onFocusWorkspace,
+  onMode,
+}: {
+  isFocusWorkspace: boolean
+  metrics: DraftMetrics
+  mode: EditorMode
+  showMetrics: boolean
+  sourceStats: {
+    blockedElements: number
+    plainTextChars: number
+    unsafeLinks: number
+  }
+  onFocusEditor: () => void
+  onFocusWorkspace: () => void
+  onMode: (mode: EditorMode) => void
+}) {
+  const sourceIssueCount = sourceStats.blockedElements + sourceStats.unsafeLinks
+
+  return (
+    <section className="editor-command-bar" aria-label="Editor status">
+      <div className="editor-command-summary">
+        <div className="editor-command-title-row">
+          <span className="field-label">Editor</span>
+          <strong className="editor-command-title">Body canvas</strong>
+          <Badge
+            tone={mode === 'source' && sourceIssueCount ? 'warning' : 'primary'}
+          >
+            {mode === 'source' ? 'Source HTML' : 'Visual editor'}
+          </Badge>
+          <ModeSwitcher
+            value={mode}
+            onMode={onMode}
+            className="editor-mode-switcher"
+          />
+        </div>
+        {showMetrics ? (
+          <div
+            className="editor-command-metrics"
+            aria-label="Draft body metrics"
+          >
+            <Badge tone="neutral">{formatCount(metrics.words, 'word')}</Badge>
+            <Badge tone="neutral" className="editor-command-secondary-metric">
+              {formatCount(metrics.chars, 'char')}
+            </Badge>
+            <Badge tone="neutral">{formatCount(metrics.links, 'link')}</Badge>
+            {mode === 'source' ? (
+              <>
+                <Badge tone={sourceIssueCount ? 'warning' : 'success'}>
+                  {sourceIssueCount
+                    ? formatCount(sourceIssueCount, 'source issue')
+                    : 'Clean source'}
+                </Badge>
+                <Badge
+                  tone="neutral"
+                  className="editor-command-secondary-metric"
+                >
+                  {formatCount(sourceStats.plainTextChars, 'plain-text char')}
+                </Badge>
+              </>
+            ) : (
+              <Badge tone={metrics.warnings ? 'warning' : 'success'}>
+                {metrics.warnings
+                  ? formatCount(metrics.warnings, 'warning')
+                  : 'No warnings'}
+              </Badge>
+            )}
+          </div>
+        ) : null}
+      </div>
+      <div className="editor-command-actions">
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="secondary-action compact-action"
+          aria-label={
+            isFocusWorkspace ? 'Exit focus workspace' : 'Focus workspace'
+          }
+          aria-pressed={isFocusWorkspace}
+          onClick={onFocusWorkspace}
+        >
+          <LaptopMinimal aria-hidden="true" strokeWidth={2.1} />
+          <span className="editor-action-label">
+            {isFocusWorkspace ? 'Exit focus' : 'Focus workspace'}
+          </span>
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="secondary-action compact-action"
+          aria-label="Focus editor"
+          onClick={onFocusEditor}
+        >
+          <PencilLine aria-hidden="true" strokeWidth={2.1} />
+          <span className="editor-action-label">Focus editor</span>
+        </Button>
+      </div>
+    </section>
+  )
+}
+
+function formatCount(count: number, singular: string, plural?: string) {
+  return `${count} ${count === 1 ? singular : (plural ?? `${singular}s`)}`
+}
+
+function WorkflowStrip({
+  busy,
+  link,
+  message,
+  messageTone,
+  openUrl,
+  readiness,
+  showControls,
+  syncMessage,
+  syncStatus,
+  themeStyle,
+  onConnect,
+  onCreateDraft,
+  onLoadDrafts,
+  onRefresh,
+  onUpdateDraft,
+}: {
+  busy: boolean
+  link?: GmailDraftLink
+  message: string
+  messageTone: MessageTone
+  openUrl: string
+  readiness: GmailReadinessReport
+  showControls: boolean
+  syncMessage: string
+  syncStatus: GmailAuthStatus
+  themeStyle: CSSProperties
+  onConnect: () => void
+  onCreateDraft: () => void
+  onLoadDrafts: () => void
+  onRefresh: () => void
+  onUpdateDraft: () => void
+}) {
+  const warningCount = readiness.checks.filter(
+    (check) => check.state !== 'pass',
+  ).length
+  const syncLabel = getGmailWorkflowLabel(syncStatus, link)
+  const syncDetail =
+    syncMessage ||
+    (syncStatus.connected
+      ? (syncStatus.email ?? 'Gmail connected.')
+      : syncStatus.needsConfig
+        ? 'Add OAuth config to enable Gmail sync.'
+        : 'Gmail sync is optional.')
+
+  return (
+    <section className="workflow-strip" aria-label="Draft workflow">
+      <div className="workflow-primary">
+        <div className="workflow-title">
+          <span className="field-label field-label-inline">
+            <FileCode2 aria-hidden="true" size={12} strokeWidth={2.2} />
+            Draft
+          </span>
+          <h2 id="editor-heading" className="field-value">
+            Untitled Gmail body
+          </h2>
+        </div>
+        <output
+          className={cn('status', `status-${messageTone}`)}
+          aria-atomic="true"
+          aria-live={messageTone === 'error' ? 'assertive' : 'polite'}
+          role={messageTone === 'error' ? 'alert' : 'status'}
+        >
+          {message}
+        </output>
+      </div>
+
+      <div className="workflow-gmail" aria-live="polite">
+        <span className="field-label field-label-inline">
+          <Mail aria-hidden="true" size={12} strokeWidth={2.2} />
+          Gmail sync
+        </span>
+        <div className="workflow-inline">
+          <Badge tone={getGmailWorkflowTone(syncStatus, link)}>
+            {syncLabel}
+          </Badge>
+          <span>{syncDetail}</span>
+        </div>
+      </div>
+
+      {showControls ? (
+        <div
+          className="workflow-actions"
+          role="group"
+          aria-label="Gmail sync menu"
+        >
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="workflow-connect-action workflow-menu-trigger"
+                disabled={busy}
+                aria-label={
+                  syncStatus.connected
+                    ? 'Open Gmail sync menu'
+                    : 'Connect Gmail'
+                }
+              >
+                <Mail aria-hidden="true" strokeWidth={2.1} />
+                {syncStatus.connected ? 'Gmail' : 'Connect'}
+                <MoreHorizontal aria-hidden="true" strokeWidth={2.1} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent style={themeStyle}>
+              <DropdownMenuLabel>Gmail workflow</DropdownMenuLabel>
+              {syncStatus.connected ? (
+                link?.draftId ? (
+                  <>
+                    <DropdownMenuItem onSelect={onUpdateDraft}>
+                      <RefreshCw aria-hidden="true" strokeWidth={2.1} />
+                      Sync linked draft
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <a href={openUrl} target="_blank" rel="noreferrer">
+                        <Mail aria-hidden="true" strokeWidth={2.1} />
+                        Open in Gmail
+                      </a>
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <>
+                    <DropdownMenuItem onSelect={onCreateDraft}>
+                      <Mail aria-hidden="true" strokeWidth={2.1} />
+                      Create Gmail draft
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={onLoadDrafts}>
+                      <RefreshCw aria-hidden="true" strokeWidth={2.1} />
+                      Load drafts
+                    </DropdownMenuItem>
+                  </>
+                )
+              ) : (
+                <>
+                  <DropdownMenuItem
+                    disabled={syncStatus.needsConfig}
+                    onSelect={onConnect}
+                  >
+                    <Mail aria-hidden="true" strokeWidth={2.1} />
+                    Connect Gmail
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={onRefresh}>
+                    <RefreshCw aria-hidden="true" strokeWidth={2.1} />
+                    Refresh status
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ) : null}
+
+      <div className="workflow-readiness">
+        <span className="field-label field-label-inline">
+          <CheckCircle2 aria-hidden="true" size={12} strokeWidth={2.2} />
+          Readiness
+        </span>
+        <div className="workflow-inline">
+          <strong>{readiness.status}</strong>
+          <Badge
+            tone={getReadinessTone(readiness.status)}
+            className="readiness-pill"
+          >
+            {warningCount
+              ? `${warningCount} issue${warningCount === 1 ? '' : 's'}`
+              : 'Ready to copy'}
+          </Badge>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function InspectorPanel({
+  children,
+  collapsed,
+  gmailLabel,
+  libraryCounts,
+  onToggle,
+  readinessIssueCount,
+  readinessStatus,
+}: {
+  children: ReactNode
+  collapsed: boolean
+  gmailLabel: string
+  libraryCounts: {
+    signatures: number
+    templates: number
+    variableSets: number
+  }
+  onToggle: () => void
+  readinessIssueCount: number
+  readinessStatus: GmailReadinessReport['status']
+}) {
+  const totalLibraryItems =
+    libraryCounts.templates +
+    libraryCounts.signatures +
+    libraryCounts.variableSets
+
+  return (
+    <aside
+      className={cn(
+        'side-panel floating-inspector',
+        collapsed && 'side-panel-collapsed',
+      )}
+      aria-label="Gmail readiness and preview tools"
+    >
+      {collapsed ? (
+        <button
+          type="button"
+          className="inspector-rail"
+          aria-label="Expand inspector"
+          aria-expanded="false"
+          aria-controls="inspector-panels"
+          onClick={onToggle}
+        >
+          <PanelRightOpen aria-hidden="true" strokeWidth={2.1} />
+          <span className="inspector-rail-label">Inspector</span>
+          <span className="inspector-rail-chips" aria-hidden="true">
+            <Badge tone="neutral">{gmailLabel}</Badge>
+            <Badge tone={getReadinessTone(readinessStatus)}>
+              {readinessIssueCount
+                ? formatCount(readinessIssueCount, 'issue')
+                : 'Ready'}
+            </Badge>
+            <Badge tone="neutral">{totalLibraryItems} saved</Badge>
+          </span>
+          <span className="sr-only">
+            Gmail {gmailLabel}. {readinessStatus}. {totalLibraryItems} library
+            items.
+          </span>
+        </button>
+      ) : (
+        <>
+          <div className="inspector-toolbar">
+            <div>
+              <span className="field-label">Inspector</span>
+              <strong>Sync and checks</strong>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className="icon-button"
+              aria-label="Collapse inspector"
+              aria-expanded="true"
+              aria-controls="inspector-panels"
+              onClick={onToggle}
+            >
+              <PanelRightClose aria-hidden="true" strokeWidth={2.1} />
+            </Button>
+          </div>
+          <div id="inspector-panels" className="inspector-panels">
+            {children}
+          </div>
+        </>
+      )}
+    </aside>
   )
 }
 
@@ -1561,29 +2509,17 @@ function GmailPanel({
   drafts,
   link,
   message,
-  openUrl,
   status,
-  onConnect,
-  onCreateDraft,
   onDisconnect,
   onLoadDraft,
-  onLoadDrafts,
-  onRefresh,
-  onUpdateDraft,
 }: {
   busy: boolean
   drafts: GmailDraftSummary[]
   link?: GmailDraftLink
   message: string
-  openUrl: string
   status: GmailAuthStatus
-  onConnect: () => void
-  onCreateDraft: () => void
   onDisconnect: () => void
   onLoadDraft: (id: string) => void
-  onLoadDrafts: () => void
-  onRefresh: () => void
-  onUpdateDraft: () => void
 }) {
   return (
     <section className="panel-card gmail-card" aria-labelledby="gmail-heading">
@@ -1596,7 +2532,9 @@ function GmailPanel({
           {link?.status ?? (status.connected ? 'connected' : 'local only')}
         </span>
       </div>
-      <p>{message || 'Connect Gmail only if you want draft sync.'}</p>
+      <p aria-live="polite" role="status">
+        {message || 'Connect Gmail only if you want draft sync.'}
+      </p>
       {status.connected ? (
         <div className="gmail-actions">
           <span className="local-badge">
@@ -1606,63 +2544,12 @@ function GmailPanel({
             type="button"
             className="secondary-action compact-action"
             disabled={busy}
-            onClick={onLoadDrafts}
-          >
-            Load drafts
-          </button>
-          <button
-            type="button"
-            className="secondary-action compact-action"
-            disabled={busy}
-            onClick={onCreateDraft}
-          >
-            Create draft
-          </button>
-          <button
-            type="button"
-            className="secondary-action compact-action"
-            disabled={busy || !link?.draftId}
-            onClick={onUpdateDraft}
-          >
-            Sync linked
-          </button>
-          <a
-            className="secondary-action compact-action"
-            href={openUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open in Gmail
-          </a>
-          <button
-            type="button"
-            className="secondary-action compact-action"
-            disabled={busy}
             onClick={onDisconnect}
           >
             Disconnect
           </button>
         </div>
-      ) : (
-        <div className="gmail-actions">
-          <button
-            type="button"
-            className="primary-action compact-action"
-            disabled={busy || status.needsConfig}
-            onClick={onConnect}
-          >
-            Connect Gmail
-          </button>
-          <button
-            type="button"
-            className="secondary-action compact-action"
-            disabled={busy}
-            onClick={onRefresh}
-          >
-            Refresh status
-          </button>
-        </div>
-      )}
+      ) : null}
       {drafts.length ? (
         <ul className="gmail-draft-list">
           {drafts.map((draft) => (
@@ -1685,12 +2572,14 @@ function GmailPanel({
 }
 
 function ConflictPanel({
+  busy,
   conflict,
   onCancel,
   onOverwrite,
   onReplaceLocal,
   onSaveNew,
 }: {
+  busy: boolean
   conflict: GmailConflictState
   onCancel: () => void
   onOverwrite: () => void
@@ -1701,6 +2590,7 @@ function ConflictPanel({
     <section
       className="panel-card conflict-card"
       aria-labelledby="conflict-heading"
+      aria-busy={busy}
     >
       <div className="panel-card-header">
         <div>
@@ -1721,6 +2611,7 @@ function ConflictPanel({
         <button
           type="button"
           className="secondary-action compact-action"
+          disabled={busy}
           onClick={onReplaceLocal}
         >
           Replace local
@@ -1728,6 +2619,7 @@ function ConflictPanel({
         <button
           type="button"
           className="secondary-action compact-action"
+          disabled={busy}
           onClick={onOverwrite}
         >
           Overwrite Gmail
@@ -1735,6 +2627,7 @@ function ConflictPanel({
         <button
           type="button"
           className="secondary-action compact-action"
+          disabled={busy}
           onClick={onSaveNew}
         >
           Save new version
@@ -1742,6 +2635,7 @@ function ConflictPanel({
         <button
           type="button"
           className="secondary-action compact-action"
+          disabled={busy}
           onClick={onCancel}
         >
           Cancel
@@ -1820,6 +2714,11 @@ function LibraryPanel({
   onSelectTemplate: (id: string) => void
   onSelectVariableSet: (id: string) => void
 }) {
+  const isLibraryEmpty =
+    library.templates.length === 0 &&
+    library.signatures.length === 0 &&
+    library.variableSets.length === 0
+
   return (
     <section
       className="panel-card library-card"
@@ -1839,134 +2738,199 @@ function LibraryPanel({
         Reusable templates, signatures, and variable sets stay in protected app
         data when the packaged server is running.
       </p>
-      <label className="library-field">
-        <span className="field-label">Template</span>
-        <select
-          value={selectedTemplateId}
-          onChange={(event) => onSelectTemplate(event.target.value)}
-        >
-          <option value="">Choose template</option>
-          {library.templates.map((template) => (
-            <option key={template.id} value={template.id}>
-              {template.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="gmail-actions">
-        <button
-          type="button"
-          className="secondary-action compact-action"
-          onClick={onApplyTemplate}
-        >
-          Apply
-        </button>
-        <button
-          type="button"
-          className="secondary-action compact-action"
-          onClick={onSaveTemplate}
-        >
-          Save current
-        </button>
-        <button
-          type="button"
-          className="secondary-action compact-action"
-          onClick={onCopyTemplate}
-        >
-          Copy template
-        </button>
-      </div>
-      <label className="library-field">
-        <span className="field-label">Signature</span>
-        <select
-          value={selectedSignatureId}
-          onChange={(event) => onSelectSignature(event.target.value)}
-        >
-          <option value="">Choose signature</option>
-          {library.signatures.map((signature) => (
-            <option key={signature.id} value={signature.id}>
-              {signature.source === 'gmail' ? 'Gmail: ' : ''}
-              {signature.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="gmail-actions">
-        <button
-          type="button"
-          className="secondary-action compact-action"
-          onClick={onInsertSignature}
-        >
-          Insert
-        </button>
-        <button
-          type="button"
-          className="secondary-action compact-action"
-          onClick={onAddSignature}
-        >
-          Add local
-        </button>
-        <button
-          type="button"
-          className="secondary-action compact-action"
-          onClick={onCopySignature}
-        >
-          Copy signature
-        </button>
-        <button
-          type="button"
-          className="secondary-action compact-action"
-          disabled={busy}
-          onClick={onImportGmailSignatures}
-        >
-          {canImportGmailSignatures ? 'Import Gmail' : 'Enable Gmail import'}
-        </button>
-      </div>
-      <label className="library-field">
-        <span className="field-label">Variables</span>
-        <select
-          value={selectedVariableSetId}
-          onChange={(event) => onSelectVariableSet(event.target.value)}
-        >
-          <option value="">Prompt for values</option>
-          {library.variableSets.map((variableSet) => (
-            <option key={variableSet.id} value={variableSet.id}>
-              {variableSet.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="gmail-actions">
-        <button
-          type="button"
-          className="secondary-action compact-action"
-          onClick={onSaveVariableSet}
-        >
-          Add set
-        </button>
-        <button
-          type="button"
-          className="secondary-action compact-action"
-          onClick={onCopyVariableSet}
-        >
-          Copy set
-        </button>
-        <button
-          type="button"
-          className="secondary-action compact-action"
-          onClick={onCopyLibrary}
-        >
-          Export all
-        </button>
-        <button
-          type="button"
-          className="secondary-action compact-action"
-          onClick={onImportLibrary}
-        >
-          Import bundle
-        </button>
-      </div>
-      {message ? <p className="library-message">{message}</p> : null}
+      {isLibraryEmpty ? (
+        <>
+          <div className="library-empty-state">
+            <strong>No saved library items</strong>
+            <p>
+              Save this draft as a template, import a bundle, or bring in Gmail
+              signatures after sync is enabled.
+            </p>
+          </div>
+          <div className="gmail-actions library-empty-actions">
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              onClick={onSaveTemplate}
+            >
+              Save current
+            </button>
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              onClick={onAddSignature}
+            >
+              Add signature
+            </button>
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              onClick={onSaveVariableSet}
+            >
+              Add variables
+            </button>
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              onClick={onImportLibrary}
+            >
+              Import bundle
+            </button>
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              disabled={busy}
+              onClick={onImportGmailSignatures}
+            >
+              {canImportGmailSignatures
+                ? 'Import Gmail'
+                : 'Enable Gmail import'}
+            </button>
+          </div>
+          {message ? (
+            <p className="library-message" aria-live="polite" role="status">
+              {message}
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <label className="library-field">
+            <span className="field-label">Template</span>
+            <select
+              value={selectedTemplateId}
+              onChange={(event) => onSelectTemplate(event.target.value)}
+            >
+              <option value="">Choose template</option>
+              {library.templates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="gmail-actions">
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              onClick={onApplyTemplate}
+            >
+              Apply
+            </button>
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              onClick={onSaveTemplate}
+            >
+              Save current
+            </button>
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              onClick={onCopyTemplate}
+            >
+              Copy template
+            </button>
+          </div>
+          <label className="library-field">
+            <span className="field-label">Signature</span>
+            <select
+              value={selectedSignatureId}
+              onChange={(event) => onSelectSignature(event.target.value)}
+            >
+              <option value="">Choose signature</option>
+              {library.signatures.map((signature) => (
+                <option key={signature.id} value={signature.id}>
+                  {signature.source === 'gmail' ? 'Gmail: ' : ''}
+                  {signature.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="gmail-actions">
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              onClick={onInsertSignature}
+            >
+              Insert
+            </button>
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              onClick={onAddSignature}
+            >
+              Add local
+            </button>
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              onClick={onCopySignature}
+            >
+              Copy signature
+            </button>
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              disabled={busy}
+              onClick={onImportGmailSignatures}
+            >
+              {canImportGmailSignatures
+                ? 'Import Gmail'
+                : 'Enable Gmail import'}
+            </button>
+          </div>
+          <label className="library-field">
+            <span className="field-label">Variables</span>
+            <select
+              value={selectedVariableSetId}
+              onChange={(event) => onSelectVariableSet(event.target.value)}
+            >
+              <option value="">Prompt for values</option>
+              {library.variableSets.map((variableSet) => (
+                <option key={variableSet.id} value={variableSet.id}>
+                  {variableSet.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="gmail-actions">
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              onClick={onSaveVariableSet}
+            >
+              Add set
+            </button>
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              onClick={onCopyVariableSet}
+            >
+              Copy set
+            </button>
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              onClick={onCopyLibrary}
+            >
+              Export all
+            </button>
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              onClick={onImportLibrary}
+            >
+              Import bundle
+            </button>
+          </div>
+          {message ? (
+            <p className="library-message" aria-live="polite" role="status">
+              {message}
+            </p>
+          ) : null}
+        </>
+      )}
     </section>
   )
 }
@@ -2030,19 +2994,58 @@ function ThemePreferenceToggle({
 }
 
 function ThemeSwitcher({
+  hasCustomTheme,
   preference,
+  themeStyle,
   onPreference,
 }: {
+  hasCustomTheme: boolean
   preference: ThemePreference
+  themeStyle: CSSProperties
   onPreference: (preference: ThemePreference) => void
 }) {
+  const activePreference =
+    preference === 'custom' && !hasCustomTheme ? 'system' : preference
+  const activeOption =
+    THEME_TOGGLE_OPTIONS.find((option) => option.mode === activePreference) ??
+    THEME_TOGGLE_OPTIONS[2]
+  const ActiveIcon = activeOption.Icon
+  const options = hasCustomTheme
+    ? THEME_TOGGLE_OPTIONS
+    : THEME_TOGGLE_OPTIONS.filter((option) => option.mode !== 'custom')
+
   return (
-    <ThemePreferenceToggle
-      preference={preference}
-      onPreference={onPreference}
-      className="theme-switcher"
-      ariaLabel="Theme preference"
-    />
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="secondary"
+          size="icon"
+          className="theme-menu-trigger"
+          aria-label={`Theme preference: ${activeOption.label}`}
+          title={`Theme: ${activeOption.label}`}
+        >
+          <ActiveIcon aria-hidden="true" strokeWidth={2.1} />
+          <span className="sr-only">{activeOption.label}</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="theme-menu-panel" style={themeStyle}>
+        <DropdownMenuLabel>Theme preference</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={activePreference}
+          onValueChange={(nextPreference) => {
+            onPreference(nextPreference as ThemePreference)
+          }}
+        >
+          {options.map(({ Icon, label, mode }) => (
+            <DropdownMenuRadioItem key={mode} value={mode}>
+              <Icon aria-hidden="true" strokeWidth={2.1} />
+              <span>{label}</span>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -2056,45 +3059,28 @@ function ModeSwitcher({
   value: EditorMode
 }) {
   return (
-    <div
-      className={['mode-switcher', className].filter(Boolean).join(' ')}
+    <ToggleGroup
+      type="single"
+      value={value}
+      onValueChange={(nextMode) => {
+        if (nextMode) {
+          onMode(nextMode as EditorMode)
+        }
+      }}
+      className={cn('mode-switcher', className)}
       aria-label="Editor mode"
-      role="group"
     >
       {(['visual', 'source'] as const).map((mode) => (
-        <button
-          key={mode}
-          type="button"
-          aria-pressed={value === mode}
-          onClick={() => onMode(mode)}
-        >
+        <ToggleGroupItem key={mode} value={mode}>
+          {mode === 'visual' ? (
+            <PencilLine aria-hidden="true" size={15} strokeWidth={2.1} />
+          ) : (
+            <FileCode2 aria-hidden="true" size={15} strokeWidth={2.1} />
+          )}
           {mode === 'visual' ? 'Visual' : 'Source'}
-        </button>
+        </ToggleGroupItem>
       ))}
-    </div>
-  )
-}
-
-function ReadinessCompact({ report }: { report: GmailReadinessReport }) {
-  const warningCount = report.checks.filter(
-    (check) => check.state !== 'pass',
-  ).length
-
-  return (
-    <section className="readiness-strip" aria-label="Copy readiness summary">
-      <div>
-        <span className="field-label">Readiness</span>
-        <strong>{report.status}</strong>
-      </div>
-      <Badge
-        tone={getReadinessTone(report.status)}
-        className={`readiness-pill readiness-${report.status.toLowerCase().replace(' ', '-')}`}
-      >
-        {warningCount
-          ? `${warningCount} issue${warningCount === 1 ? '' : 's'}`
-          : 'Ready to copy'}
-      </Badge>
-    </section>
+    </ToggleGroup>
   )
 }
 
@@ -2111,7 +3097,7 @@ function ReadinessPanel({ report }: { report: GmailReadinessReport }) {
         </div>
         <Badge
           tone={getReadinessTone(report.status)}
-          className={`readiness-pill readiness-${report.status.toLowerCase().replace(' ', '-')}`}
+          className="readiness-pill"
         >
           {report.status}
         </Badge>
@@ -2142,6 +3128,40 @@ function getReadinessTone(
   }
 
   return status === 'Copy blocked' ? 'error' : 'warning'
+}
+
+function getGmailWorkflowLabel(
+  status: GmailAuthStatus,
+  link?: GmailDraftLink,
+): string {
+  if (link?.status) {
+    return link.status
+  }
+
+  if (status.connected) {
+    return 'connected'
+  }
+
+  return status.needsConfig ? 'setup needed' : 'local only'
+}
+
+function getGmailWorkflowTone(
+  status: GmailAuthStatus,
+  link?: GmailDraftLink,
+): 'neutral' | 'primary' | 'success' | 'warning' | 'error' {
+  if (link?.status === 'error' || link?.status === 'conflict') {
+    return 'error'
+  }
+
+  if (link?.status === 'pending' || link?.status === 'paused') {
+    return 'warning'
+  }
+
+  if (link?.status === 'synced' || status.connected) {
+    return 'success'
+  }
+
+  return status.needsConfig ? 'warning' : 'neutral'
 }
 
 function PreviewDrawer({
@@ -2189,6 +3209,10 @@ function PreviewDrawer({
                 <DialogTitle id="preview-heading">
                   Gmail body preview
                 </DialogTitle>
+                <DialogDescription className="sr-only">
+                  Preview the sanitized Gmail body in rendered, plain text, or
+                  source modes before copying.
+                </DialogDescription>
               </div>
               <DialogClose asChild>
                 <Button
@@ -2201,28 +3225,34 @@ function PreviewDrawer({
                 </Button>
               </DialogClose>
             </div>
-            <div
+            <ToggleGroup
+              type="single"
+              value={mode}
               className="preview-tabs"
-              role="group"
               aria-label="Preview mode"
+              onValueChange={(nextMode) => {
+                if (nextMode) {
+                  onMode(nextMode as PreviewMode)
+                }
+              }}
             >
               {(['rendered', 'plain', 'source'] as const).map((previewMode) => (
-                <Button
-                  key={previewMode}
-                  type="button"
-                  variant={mode === previewMode ? 'primary' : 'secondary'}
-                  aria-pressed={mode === previewMode}
-                  className={mode === previewMode ? 'active' : ''}
-                  onClick={() => onMode(previewMode)}
-                >
+                <ToggleGroupItem key={previewMode} value={previewMode}>
+                  {previewMode === 'rendered' ? (
+                    <Eye aria-hidden="true" strokeWidth={2.1} />
+                  ) : previewMode === 'plain' ? (
+                    <Type aria-hidden="true" strokeWidth={2.1} />
+                  ) : (
+                    <FileCode2 aria-hidden="true" strokeWidth={2.1} />
+                  )}
                   {previewMode === 'rendered'
                     ? 'Rendered'
                     : previewMode === 'plain'
                       ? 'Plain text'
                       : 'Source'}
-                </Button>
+                </ToggleGroupItem>
               ))}
-            </div>
+            </ToggleGroup>
             <div className="preview-meta">
               <Badge tone="neutral">
                 {readiness.linkCount} link
@@ -2258,6 +3288,7 @@ function SettingsModal({
   onClose,
   onCopyThemeJson,
   onPresetTheme,
+  onResetSettings,
   onSettings,
   onThemeJsonDraft,
   onThemePreference,
@@ -2272,10 +3303,33 @@ function SettingsModal({
   onClose: () => void
   onCopyThemeJson: () => void
   onPresetTheme: (theme: ThemeDefinition) => void
+  onResetSettings: () => void
   onSettings: (patch: Partial<AppSettings>) => void
   onThemeJsonDraft: (value: string) => void
   onThemePreference: (preference: ThemePreference) => void
 }) {
+  const shouldOpenAdvancedTheme = Boolean(
+    themeJsonError || settings.themePreference === 'custom',
+  )
+  const [isAdvancedThemeOpen, setAdvancedThemeOpen] = useState(false)
+  const advancedThemeOpen = isAdvancedThemeOpen || shouldOpenAdvancedTheme
+  const [themePresetQuery, setThemePresetQuery] = useState('')
+  const [themePresetCategory, setThemePresetCategory] = useState<
+    ThemePresetCategory | 'All'
+  >('All')
+  const visibleLightPresets = searchThemePresets(
+    themePresetQuery,
+    'light',
+    themePresetCategory,
+  )
+  const visibleDarkPresets = searchThemePresets(
+    themePresetQuery,
+    'dark',
+    themePresetCategory,
+  )
+  const visiblePresetCount =
+    visibleLightPresets.length + visibleDarkPresets.length
+
   return (
     <Dialog
       open
@@ -2295,6 +3349,10 @@ function SettingsModal({
               <div>
                 <span className="eyebrow">Studio controls</span>
                 <DialogTitle id="settings-heading">Settings</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Adjust local appearance, editor preferences, privacy defaults,
+                  and custom theme tokens.
+                </DialogDescription>
               </div>
               <DialogClose asChild>
                 <Button
@@ -2309,179 +3367,543 @@ function SettingsModal({
             </div>
 
             <div className="settings-grid">
-              <section className="settings-section">
-                <h3>Appearance</h3>
-                <p>
-                  Theme changes stay local. Pick a bundled preset here, or use
-                  the advanced JSON editor below when you need custom tokens.
-                </p>
-                <div className="active-theme-summary">
-                  <span
-                    style={{
-                      background: activeTheme.tokens.background,
-                      borderColor: activeTheme.tokens.lineStrong,
-                      color: activeTheme.tokens.accent,
-                    }}
-                  >
-                    Aa
-                  </span>
-                  <div>
-                    <strong>{activeTheme.name}</strong>
-                    <small>{activeTheme.mode} mode active</small>
-                  </div>
-                </div>
-                <ThemePreferenceToggle
-                  preference={settings.themePreference}
-                  onPreference={onThemePreference}
-                  includeCustom
-                  className="theme-mode-grid"
-                  ariaLabel="Theme preference"
-                />
-                <span className="settings-subhead">Light presets</span>
-                <div className="theme-preset-grid">
-                  {THEME_PRESETS.filter((theme) => theme.mode === 'light').map(
-                    (theme) => (
-                      <Button
-                        key={theme.id}
-                        type="button"
-                        variant="secondary"
-                        className="theme-card"
-                        aria-pressed={activeTheme.id === theme.id}
-                        onClick={() => onPresetTheme(theme)}
-                      >
-                        <span
-                          style={{
-                            background: theme.tokens.background,
-                            borderColor: theme.tokens.lineStrong,
-                            color: theme.tokens.accent,
-                          }}
-                        >
-                          Aa
-                        </span>
-                        {theme.name}
-                      </Button>
-                    ),
-                  )}
-                </div>
-                <span className="settings-subhead">Dark presets</span>
-                <div className="theme-preset-grid">
-                  {THEME_PRESETS.filter((theme) => theme.mode === 'dark').map(
-                    (theme) => (
-                      <Button
-                        key={theme.id}
-                        type="button"
-                        variant="secondary"
-                        className="theme-card"
-                        aria-pressed={activeTheme.id === theme.id}
-                        onClick={() => onPresetTheme(theme)}
-                      >
-                        <span
-                          style={{
-                            background: theme.tokens.background,
-                            borderColor: theme.tokens.lineStrong,
-                            color: theme.tokens.accent,
-                          }}
-                        >
-                          Aa
-                        </span>
-                        {theme.name}
-                      </Button>
-                    ),
-                  )}
-                </div>
-              </section>
-
-              <section className="settings-section settings-section-advanced">
-                <h3>Advanced Theme JSON</h3>
-                <p>
-                  Copy, paste, validate, and apply a local theme token object.
-                  This is intentionally tucked away from the main composing
-                  flow.
-                </p>
-                <label className="sr-only" htmlFor="theme-json">
-                  Theme JSON
-                </label>
-                <textarea
-                  id="theme-json"
-                  className="theme-json-input"
-                  spellCheck={false}
-                  value={themeJsonDraft}
-                  onChange={(event) => onThemeJsonDraft(event.target.value)}
-                />
-                {themeJsonError ? (
-                  <p className="settings-error" role="alert">
-                    {themeJsonError}
+              <div className="settings-column">
+                <section className="settings-section">
+                  <h3>Appearance</h3>
+                  <p>
+                    Theme changes stay local. Pick a bundled preset here, or use
+                    the advanced JSON editor below when you need custom tokens.
                   </p>
-                ) : null}
-                <div className="settings-actions">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="secondary-action compact-action"
-                    onClick={onApplyThemeJson}
+                  <div className="active-theme-summary">
+                    <span
+                      style={{
+                        background: activeTheme.tokens.background,
+                        borderColor: activeTheme.tokens.lineStrong,
+                        color: activeTheme.tokens.ink,
+                      }}
+                    >
+                      Aa
+                    </span>
+                    <div>
+                      <strong>{activeTheme.name}</strong>
+                      <small>{activeTheme.mode} mode active</small>
+                    </div>
+                  </div>
+                  <ThemePreferenceToggle
+                    preference={settings.themePreference}
+                    onPreference={onThemePreference}
+                    includeCustom
+                    className="theme-mode-grid"
+                    ariaLabel="Theme preference"
+                  />
+                  <div className="theme-preset-toolbar">
+                    <label className="theme-search-field">
+                      <Search aria-hidden="true" size={15} strokeWidth={2.1} />
+                      <span className="sr-only">Search style presets</span>
+                      <input
+                        type="search"
+                        value={themePresetQuery}
+                        onChange={(event) =>
+                          setThemePresetQuery(event.target.value)
+                        }
+                        placeholder="Search styles, colors, contrast"
+                        aria-label="Search style presets"
+                      />
+                    </label>
+                    <span className="theme-index-count">
+                      {visiblePresetCount} / {THEME_PRESETS.length}
+                    </span>
+                  </div>
+                  <ToggleGroup
+                    type="single"
+                    value={themePresetCategory}
+                    onValueChange={(nextCategory) => {
+                      if (nextCategory) {
+                        setThemePresetCategory(
+                          nextCategory as ThemePresetCategory | 'All',
+                        )
+                      }
+                    }}
+                    className="theme-category-filter"
+                    aria-label="Style preset category"
                   >
-                    Apply JSON
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="secondary-action compact-action"
-                    onClick={onCopyThemeJson}
-                  >
-                    Copy current JSON
-                  </Button>
-                </div>
-              </section>
+                    {(['All', ...THEME_PRESET_CATEGORIES] as const).map(
+                      (category) => (
+                        <ToggleGroupItem
+                          key={category}
+                          value={category}
+                          aria-label={`Show ${category.toLowerCase()} presets`}
+                        >
+                          {category}
+                        </ToggleGroupItem>
+                      ),
+                    )}
+                  </ToggleGroup>
+                  <ThemePresetSection
+                    activeTheme={activeTheme}
+                    title="Light presets"
+                    themes={visibleLightPresets}
+                    onPresetTheme={onPresetTheme}
+                  />
+                  <ThemePresetSection
+                    activeTheme={activeTheme}
+                    title="Dark presets"
+                    themes={visibleDarkPresets}
+                    onPresetTheme={onPresetTheme}
+                  />
+                </section>
+              </div>
 
-              <section className="settings-section">
-                <h3>Editor and privacy</h3>
-                <label className="toggle-row">
-                  <span>Open in Source mode by default</span>
-                  <input
-                    type="checkbox"
-                    checked={settings.editorMode === 'source'}
-                    onChange={(event) =>
-                      onSettings({
-                        editorMode: event.target.checked ? 'source' : 'visual',
-                      })
+              <div className="settings-column settings-column-secondary">
+                <details
+                  className="settings-section settings-section-advanced"
+                  open={advancedThemeOpen}
+                  onToggle={(event) =>
+                    setAdvancedThemeOpen(event.currentTarget.open)
+                  }
+                >
+                  <summary>Advanced Theme JSON</summary>
+                  <p>
+                    Copy, paste, validate, and apply a local theme token object.
+                    This stays separate from the daily composing flow.
+                  </p>
+                  <label className="field-label" htmlFor="theme-json">
+                    Theme JSON
+                  </label>
+                  <textarea
+                    id="theme-json"
+                    className="theme-json-input"
+                    spellCheck={false}
+                    value={themeJsonDraft}
+                    onChange={(event) => onThemeJsonDraft(event.target.value)}
+                  />
+                  {themeJsonError ? (
+                    <p className="settings-error" role="alert">
+                      {themeJsonError}
+                    </p>
+                  ) : null}
+                  <div className="settings-actions">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="secondary-action compact-action"
+                      onClick={onApplyThemeJson}
+                    >
+                      Apply JSON
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="secondary-action compact-action"
+                      onClick={onCopyThemeJson}
+                    >
+                      Copy current JSON
+                    </Button>
+                  </div>
+                </details>
+
+                <section className="settings-section settings-section-workspace">
+                  <h3>Workspace</h3>
+                  <p>
+                    Tune the composing surface without changing draft, Gmail, or
+                    library data.
+                  </p>
+                  <SettingsChoiceGroup<InspectorDefault>
+                    label="Inspector default"
+                    value={settings.inspectorDefault}
+                    options={[
+                      ['auto', 'Auto'],
+                      ['expanded', 'Expanded'],
+                      ['collapsed', 'Collapsed'],
+                    ]}
+                    onValueChange={(inspectorDefault) =>
+                      onSettings({ inspectorDefault })
                     }
                   />
-                </label>
-                <label className="toggle-row">
-                  <span>Show clipboard privacy reminders</span>
-                  <input
-                    type="checkbox"
-                    checked={settings.clipboardPrivacyReminder}
-                    onChange={(event) =>
-                      onSettings({
-                        clipboardPrivacyReminder: event.target.checked,
-                      })
+                  <SettingsChoiceGroup<EditorCanvasSize>
+                    label="Editor canvas"
+                    value={settings.editorCanvas}
+                    options={[
+                      ['compact', 'Compact'],
+                      ['comfortable', 'Comfortable'],
+                      ['wide', 'Wide'],
+                    ]}
+                    onValueChange={(editorCanvas) =>
+                      onSettings({ editorCanvas })
                     }
                   />
-                </label>
-                <label className="toggle-row">
-                  <span>Opt in to local draft recovery</span>
-                  <input
-                    type="checkbox"
-                    checked={settings.draftRecovery}
-                    onChange={(event) =>
-                      onSettings({ draftRecovery: event.target.checked })
+                  <SettingsChoiceGroup<DefaultPreviewMode>
+                    label="Default preview mode"
+                    value={settings.defaultPreviewMode}
+                    options={[
+                      ['rendered', 'Rendered'],
+                      ['plain', 'Plain text'],
+                      ['source', 'Source'],
+                    ]}
+                    onValueChange={(defaultPreviewMode) =>
+                      onSettings({ defaultPreviewMode })
                     }
                   />
-                </label>
+                  <label className="toggle-row">
+                    <span>Focus editor on launch</span>
+                    <input
+                      type="checkbox"
+                      checked={settings.focusEditorOnLaunch}
+                      onChange={(event) =>
+                        onSettings({
+                          focusEditorOnLaunch: event.target.checked,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="toggle-row">
+                    <span>Show editor metrics</span>
+                    <input
+                      type="checkbox"
+                      checked={settings.showEditorMetrics}
+                      onChange={(event) =>
+                        onSettings({ showEditorMetrics: event.target.checked })
+                      }
+                    />
+                  </label>
+                  <label className="toggle-row">
+                    <span>Keep Gmail controls visible</span>
+                    <input
+                      type="checkbox"
+                      checked={settings.keepGmailControlsVisible}
+                      onChange={(event) =>
+                        onSettings({
+                          keepGmailControlsVisible: event.target.checked,
+                        })
+                      }
+                    />
+                  </label>
+                </section>
+
+                <section className="settings-section settings-section-privacy">
+                  <h3>Editor and privacy</h3>
+                  <label className="toggle-row">
+                    <span>Open in Source mode by default</span>
+                    <input
+                      type="checkbox"
+                      checked={settings.editorMode === 'source'}
+                      onChange={(event) =>
+                        onSettings({
+                          editorMode: event.target.checked
+                            ? 'source'
+                            : 'visual',
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="toggle-row">
+                    <span>Show clipboard privacy reminders</span>
+                    <input
+                      type="checkbox"
+                      checked={settings.clipboardPrivacyReminder}
+                      onChange={(event) =>
+                        onSettings({
+                          clipboardPrivacyReminder: event.target.checked,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="toggle-row">
+                    <span>Opt in to local draft recovery</span>
+                    <input
+                      type="checkbox"
+                      checked={settings.draftRecovery}
+                      onChange={(event) =>
+                        onSettings({ draftRecovery: event.target.checked })
+                      }
+                    />
+                  </label>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="secondary-action compact-action"
+                    onClick={onResetSettings}
+                  >
+                    Reset settings
+                  </Button>
+                </section>
+              </div>
+            </div>
+          </DialogContent>
+        </section>
+      </DialogPortal>
+    </Dialog>
+  )
+}
+
+function SettingsChoiceGroup<TValue extends string>({
+  label,
+  onValueChange,
+  options,
+  value,
+}: {
+  label: string
+  onValueChange: (value: TValue) => void
+  options: readonly (readonly [TValue, string])[]
+  value: TValue
+}) {
+  return (
+    <div className="settings-choice">
+      <span className="field-label">{label}</span>
+      <ToggleGroup
+        type="single"
+        value={value}
+        className="settings-choice-control"
+        aria-label={label}
+        onValueChange={(nextValue) => {
+          if (nextValue) {
+            onValueChange(nextValue as TValue)
+          }
+        }}
+      >
+        {options.map(([optionValue, optionLabel]) => (
+          <ToggleGroupItem key={optionValue} value={optionValue}>
+            {optionLabel}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </div>
+  )
+}
+
+function ThemePresetSection({
+  activeTheme,
+  themes,
+  title,
+  onPresetTheme,
+}: {
+  activeTheme: ThemeDefinition
+  themes: ThemeDefinition[]
+  title: string
+  onPresetTheme: (theme: ThemeDefinition) => void
+}) {
+  const groups = groupThemePresets(themes)
+
+  return (
+    <section className="theme-preset-section" aria-label={title}>
+      <div className="theme-preset-section-header">
+        <span className="settings-subhead">{title}</span>
+        <span className="theme-index-count">{themes.length}</span>
+      </div>
+      {themes.length ? (
+        <div className="theme-preset-groups">
+          {groups.map(({ category, groupedThemes }) => (
+            <div key={category} className="theme-preset-group">
+              <div className="theme-preset-group-header">
+                <span>{category}</span>
+                <span>{groupedThemes.length}</span>
+              </div>
+              <div className="theme-preset-grid">
+                {groupedThemes.map((theme) => {
+                  const index = getThemePresetIndexEntry(theme.id)
+
+                  return (
+                    <Button
+                      key={theme.id}
+                      type="button"
+                      variant="secondary"
+                      className="theme-card"
+                      aria-pressed={activeTheme.id === theme.id}
+                      onClick={() => onPresetTheme(theme)}
+                    >
+                      <span
+                        style={{
+                          background: theme.tokens.background,
+                          borderColor: theme.tokens.lineStrong,
+                          color: theme.tokens.ink,
+                        }}
+                      >
+                        Aa
+                      </span>
+                      <span className="theme-card-copy">
+                        <strong>{theme.name}</strong>
+                        <small>{index?.category ?? theme.mode}</small>
+                      </span>
+                    </Button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="theme-preset-empty">No presets match this search.</p>
+      )}
+    </section>
+  )
+}
+
+function groupThemePresets(themes: ThemeDefinition[]) {
+  return THEME_PRESET_CATEGORIES.map((category) => ({
+    category,
+    groupedThemes: themes.filter(
+      (theme) => getThemePresetIndexEntry(theme.id)?.category === category,
+    ),
+  })).filter((group) => group.groupedThemes.length > 0)
+}
+
+function ConfirmDialog({
+  dialog,
+  isSubmitting,
+  themeStyle,
+  onClose,
+  onConfirm,
+}: {
+  dialog: ConfirmDialogState
+  isSubmitting: boolean
+  themeStyle: CSSProperties
+  onClose: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <AlertDialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !isSubmitting) onClose()
+      }}
+    >
+      <AlertDialogPortal>
+        <section className="app-dialog-layer" style={themeStyle}>
+          <AlertDialogOverlay />
+          <AlertDialogContent
+            aria-busy={isSubmitting}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault()
+            }}
+          >
+            <AlertDialogTitle>{dialog.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {dialog.description}
+            </AlertDialogDescription>
+            {isSubmitting ? (
+              <p className="sr-only" role="status">
+                Working...
+              </p>
+            ) : null}
+            <div className="dialog-actions">
+              <AlertDialogCancel asChild>
                 <Button
                   type="button"
                   variant="secondary"
-                  size="sm"
-                  className="secondary-action compact-action"
-                  onClick={() => onSettings(defaultSettings)}
+                  disabled={isSubmitting}
                 >
-                  Reset settings
+                  Cancel
                 </Button>
-              </section>
+              </AlertDialogCancel>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={isSubmitting}
+                onClick={onConfirm}
+              >
+                {isSubmitting ? 'Working...' : dialog.confirmLabel}
+              </Button>
             </div>
+          </AlertDialogContent>
+        </section>
+      </AlertDialogPortal>
+    </AlertDialog>
+  )
+}
+
+function FormDialog({
+  dialog,
+  isSubmitting,
+  themeStyle,
+  onChangeField,
+  onClose,
+  onSubmit,
+}: {
+  dialog: FormDialogState
+  isSubmitting: boolean
+  themeStyle: CSSProperties
+  onChangeField: (fieldId: string, value: string) => void
+  onClose: () => void
+  onSubmit: () => void
+}) {
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !isSubmitting) onClose()
+      }}
+    >
+      <DialogPortal>
+        <section className="app-dialog-layer" style={themeStyle}>
+          <DialogOverlay />
+          <DialogContent
+            className="form-dialog"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault()
+            }}
+          >
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                onSubmit()
+              }}
+              aria-busy={isSubmitting}
+            >
+              <div className="dialog-heading">
+                <DialogTitle>{dialog.title}</DialogTitle>
+                <DialogDescription>{dialog.description}</DialogDescription>
+              </div>
+              <div className="dialog-field-list">
+                {dialog.fields.map((field) => (
+                  <label key={field.id} className="dialog-field">
+                    <span className="field-label">{field.label}</span>
+                    {field.kind === 'textarea' ? (
+                      <textarea
+                        value={field.value}
+                        placeholder={field.placeholder}
+                        rows={field.rows ?? 6}
+                        disabled={isSubmitting}
+                        onChange={(event) =>
+                          onChangeField(field.id, event.target.value)
+                        }
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={field.value}
+                        placeholder={field.placeholder}
+                        disabled={isSubmitting}
+                        onChange={(event) =>
+                          onChangeField(field.id, event.target.value)
+                        }
+                      />
+                    )}
+                  </label>
+                ))}
+              </div>
+              {dialog.error ? (
+                <p className="settings-error" role="alert">
+                  {dialog.error}
+                </p>
+              ) : null}
+              <div className="dialog-actions">
+                <DialogClose asChild>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                </DialogClose>
+                <Button type="submit" variant="primary" disabled={isSubmitting}>
+                  {isSubmitting ? 'Working...' : dialog.submitLabel}
+                </Button>
+              </div>
+            </form>
           </DialogContent>
         </section>
       </DialogPortal>
@@ -2495,9 +3917,39 @@ function getActiveHTMLElement(): HTMLElement | null {
     : null
 }
 
-function restoreFocus(ref: RefObject<HTMLElement | null>) {
-  const target = ref.current
+function getNarrowInspectorViewport(): boolean {
+  try {
+    return window.matchMedia?.('(max-width: 1180px)').matches ?? false
+  } catch {
+    return false
+  }
+}
+
+function getCompactComposerViewport(): boolean {
+  try {
+    return window.matchMedia?.('(max-width: 760px)').matches ?? false
+  } catch {
+    return false
+  }
+}
+
+function getRecipientCount(recipients: DraftRecipients): number {
+  return [
+    ...normalizeRecipientList(recipients.to),
+    ...normalizeRecipientList(recipients.cc),
+    ...normalizeRecipientList(recipients.bcc),
+  ].length
+}
+
+function restoreFocus(
+  ref: RefObject<HTMLElement | null>,
+  fallbackRef?: RefObject<HTMLElement | null>,
+) {
+  const target = ref.current?.isConnected ? ref.current : fallbackRef?.current
   ref.current = null
+  if (fallbackRef) {
+    fallbackRef.current = null
+  }
 
   if (!target?.isConnected) {
     return
@@ -2560,10 +4012,10 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#039;')
 }
 
-function collectPlaceholderValues(
+function collectPlaceholderFields(
   template: EmailTemplate,
   defaults: Record<string, string>,
-): Record<string, string> {
+): FormDialogField[] {
   const names = collectTemplateVariables({
     html: template.html,
     recipients: template.recipients,
@@ -2573,17 +4025,17 @@ function collectPlaceholderValues(
     template.variables.map((variable) => [variable.name, variable]),
   )
 
-  return Object.fromEntries(
-    names.map((name) => {
-      const variable = variables.get(name)
-      const fallback = defaults[name] ?? variable?.defaultValue ?? ''
-      const label = variable?.label ?? name
-      return [
-        name,
-        window.prompt(`Value for {{${label}}}:`, fallback) ?? fallback,
-      ]
-    }),
-  )
+  return names.map((name) => {
+    const variable = variables.get(name)
+    const fallback = defaults[name] ?? variable?.defaultValue ?? ''
+    const label = variable?.label ?? name
+    return {
+      id: name,
+      kind: 'text',
+      label: `Value for {{${label}}}`,
+      value: fallback,
+    }
+  })
 }
 
 function parseStringRecord(value: unknown): Record<string, string> {

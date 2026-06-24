@@ -6,6 +6,9 @@ import {
 } from './themes'
 
 export type EditorMode = 'visual' | 'source'
+export type DefaultPreviewMode = 'rendered' | 'plain' | 'source'
+export type EditorCanvasSize = 'compact' | 'comfortable' | 'wide'
+export type InspectorDefault = 'auto' | 'expanded' | 'collapsed'
 
 export type AppSettings = {
   version: 1
@@ -14,7 +17,13 @@ export type AppSettings = {
   selectedThemeId: string
   customTheme?: ThemeDefinition
   clipboardPrivacyReminder: boolean
+  defaultPreviewMode: DefaultPreviewMode
   draftRecovery: boolean
+  editorCanvas: EditorCanvasSize
+  focusEditorOnLaunch: boolean
+  inspectorDefault: InspectorDefault
+  keepGmailControlsVisible: boolean
+  showEditorMetrics: boolean
 }
 
 export const settingsStorageKey = 'copy-to-gmail.settings.v1'
@@ -25,7 +34,13 @@ export const defaultSettings: AppSettings = {
   themePreference: 'system',
   selectedThemeId: defaultThemeId,
   clipboardPrivacyReminder: true,
+  defaultPreviewMode: 'rendered',
   draftRecovery: false,
+  editorCanvas: 'comfortable',
+  focusEditorOnLaunch: false,
+  inspectorDefault: 'auto',
+  keepGmailControlsVisible: true,
+  showEditorMetrics: true,
 }
 
 type SettingsStorage = {
@@ -76,6 +91,15 @@ export function normalizeSettings(value: unknown): AppSettings {
   const themePreference = isThemePreference(record.themePreference)
     ? record.themePreference
     : defaultSettings.themePreference
+  const defaultPreviewMode = isDefaultPreviewMode(record.defaultPreviewMode)
+    ? record.defaultPreviewMode
+    : defaultSettings.defaultPreviewMode
+  const editorCanvas = isEditorCanvasSize(record.editorCanvas)
+    ? record.editorCanvas
+    : defaultSettings.editorCanvas
+  const inspectorDefault = isInspectorDefault(record.inspectorDefault)
+    ? record.inspectorDefault
+    : defaultSettings.inspectorDefault
   const selectedThemeId =
     typeof record.selectedThemeId === 'string'
       ? record.selectedThemeId
@@ -91,10 +115,25 @@ export function normalizeSettings(value: unknown): AppSettings {
       typeof record.clipboardPrivacyReminder === 'boolean'
         ? record.clipboardPrivacyReminder
         : defaultSettings.clipboardPrivacyReminder,
+    defaultPreviewMode,
     draftRecovery:
       typeof record.draftRecovery === 'boolean'
         ? record.draftRecovery
         : defaultSettings.draftRecovery,
+    editorCanvas,
+    focusEditorOnLaunch:
+      typeof record.focusEditorOnLaunch === 'boolean'
+        ? record.focusEditorOnLaunch
+        : defaultSettings.focusEditorOnLaunch,
+    inspectorDefault,
+    keepGmailControlsVisible:
+      typeof record.keepGmailControlsVisible === 'boolean'
+        ? record.keepGmailControlsVisible
+        : defaultSettings.keepGmailControlsVisible,
+    showEditorMetrics:
+      typeof record.showEditorMetrics === 'boolean'
+        ? record.showEditorMetrics
+        : defaultSettings.showEditorMetrics,
   }
 }
 
@@ -105,6 +144,18 @@ function isThemePreference(value: unknown): value is ThemePreference {
     value === 'system' ||
     value === 'custom'
   )
+}
+
+function isDefaultPreviewMode(value: unknown): value is DefaultPreviewMode {
+  return value === 'rendered' || value === 'plain' || value === 'source'
+}
+
+function isEditorCanvasSize(value: unknown): value is EditorCanvasSize {
+  return value === 'compact' || value === 'comfortable' || value === 'wide'
+}
+
+function isInspectorDefault(value: unknown): value is InspectorDefault {
+  return value === 'auto' || value === 'expanded' || value === 'collapsed'
 }
 
 function normalizeCustomTheme(value: unknown): ThemeDefinition | undefined {
