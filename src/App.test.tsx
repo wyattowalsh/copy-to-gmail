@@ -113,9 +113,11 @@ describe('App', () => {
     render(<App />)
 
     expect(await screen.findByText('Body canvas')).toBeInTheDocument()
-    expect(
-      await screen.findAllByText(/gmail sync is optional and disconnected/i),
-    ).not.toHaveLength(0)
+    const workflow = await screen.findByRole('region', {
+      name: /draft workflow/i,
+    })
+    expect(within(workflow).getByText(/^local only$/i)).toBeInTheDocument()
+    expect(within(workflow).queryByText(/optional/i)).not.toBeInTheDocument()
   })
 
   it('surfaces body metrics next to the editor and focuses editing surfaces', async () => {
@@ -336,7 +338,7 @@ describe('App', () => {
     })
   })
 
-  it('promotes configured Gmail sync into the draft workflow and compacts an empty library', async () => {
+  it('keeps disconnected Gmail sync quiet while compacting an empty library', async () => {
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
       const path = getRequestPath(input)
 
@@ -357,15 +359,12 @@ describe('App', () => {
     const workflow = await screen.findByRole('region', {
       name: /draft workflow/i,
     })
-    const connect = within(workflow).getByRole('button', {
-      name: /connect gmail/i,
-    })
-    expect(connect).toBeEnabled()
     expect(
-      screen.getAllByRole('button', { name: /connect gmail/i }),
-    ).toHaveLength(1)
+      within(workflow).queryByRole('button', { name: /connect gmail/i }),
+    ).not.toBeInTheDocument()
     expect(within(workflow).getByText(/^gmail sync$/i)).toBeInTheDocument()
     expect(within(workflow).getByText(/^local only$/i)).toBeInTheDocument()
+    expect(screen.queryByText(/^gmail drafts$/i)).not.toBeInTheDocument()
 
     expect(
       await screen.findByText(/no saved library items/i),
@@ -374,8 +373,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /save current/i })).toBeEnabled()
   })
 
-  it('shows setup-needed Gmail state in the workflow while keeping connect available', async () => {
-    const user = userEvent.setup()
+  it('shows setup-needed Gmail state without adding a connect control', async () => {
     render(<App />)
 
     const workflow = await screen.findByRole('region', {
@@ -388,18 +386,9 @@ describe('App', () => {
         /add google oauth config to enable gmail sync/i,
       ),
     ).toBeInTheDocument()
-    const gmailActions = within(workflow).getByRole('button', {
-      name: /connect gmail/i,
-    })
-    expect(gmailActions).toBeEnabled()
-
-    await user.click(gmailActions)
     expect(
-      screen.getByRole('menuitem', { name: /connect gmail/i }),
-    ).not.toHaveAttribute('aria-disabled', 'true')
-    expect(
-      screen.getByRole('menuitem', { name: /refresh status/i }),
-    ).toBeInTheDocument()
+      within(workflow).queryByRole('button', { name: /connect gmail/i }),
+    ).not.toBeInTheDocument()
   })
 
   it('surfaces Gmail callback token failures with a retry-focused message', async () => {
@@ -423,8 +412,8 @@ describe('App', () => {
       name: /draft workflow/i,
     })
     expect(
-      within(workflow).getByRole('button', { name: /connect gmail/i }),
-    ).toBeEnabled()
+      within(workflow).queryByRole('button', { name: /connect gmail/i }),
+    ).not.toBeInTheDocument()
   })
 
   it('surfaces successful Gmail callback state and clears callback params', async () => {
@@ -777,24 +766,22 @@ describe('App', () => {
     ).toBeInTheDocument()
   })
 
-  it('searches and filters indexed style presets in settings', async () => {
+  it('keeps style presets organized by light and dark search results', async () => {
     const user = userEvent.setup()
     render(<App />)
 
     await user.click(screen.getByRole('button', { name: /^settings$/i }))
 
     const dialog = await screen.findByRole('dialog', { name: /settings/i })
+    expect(within(dialog).getByText(/^Light presets$/i)).toBeInTheDocument()
+    expect(within(dialog).getByText(/^Dark presets$/i)).toBeInTheDocument()
     expect(within(dialog).getByText(/Rosé Pine Dawn/i)).toBeInTheDocument()
     expect(within(dialog).getByText(/Rosé Pine Moon/i)).toBeInTheDocument()
-
-    await user.click(
-      within(dialog).getByRole('radio', {
+    expect(
+      within(dialog).queryByRole('radio', {
         name: /show rosé pine presets/i,
       }),
-    )
-    expect(within(dialog).getByText(/Rosé Pine Dawn/i)).toBeInTheDocument()
-    expect(within(dialog).getByText(/Rosé Pine Moon/i)).toBeInTheDocument()
-    expect(within(dialog).queryByText(/Gmail Clean/i)).not.toBeInTheDocument()
+    ).not.toBeInTheDocument()
 
     const search = within(dialog).getByRole('searchbox', {
       name: /search style presets/i,
@@ -805,6 +792,86 @@ describe('App', () => {
     expect(
       within(dialog).queryByText(/Rosé Pine Dawn/i),
     ).not.toBeInTheDocument()
+  })
+
+  it('automatically imports connected Gmail signatures without flattening safe styling', async () => {
+    const savedLibraries: unknown[] = []
+
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = getRequestPath(input)
+        const method = init?.method ?? 'GET'
+
+        if (path === '/api/gmail/status') {
+          return Promise.resolve(
+            jsonResponse({
+              connected: true,
+              email: 'person@example.com',
+              scopes: [
+                'https://www.googleapis.com/auth/gmail.compose',
+                'https://www.googleapis.com/auth/gmail.settings.basic',
+              ],
+            }),
+          )
+        }
+
+        if (path === '/api/library' && method === 'PUT') {
+          const requestBody = typeof init?.body === 'string' ? init.body : '{}'
+          const body = JSON.parse(requestBody) as {
+            library?: unknown
+          }
+          savedLibraries.push(body.library)
+
+          return Promise.resolve(jsonResponse({ library: body.library }))
+        }
+
+        if (path === '/api/library') {
+          return Promise.resolve(jsonResponse(emptyLibraryBundle()))
+        }
+
+        if (path === '/api/gmail/signatures') {
+          return Promise.resolve(
+            jsonResponse({
+              signatures: [
+                {
+                  email: 'person@example.com',
+                  html: '<table cellpadding="0" cellspacing="0"><tr><td><font color="#123456" face="Arial" size="2">Cheers</font><img src="https://example.com/sig.png" width="80"></td></tr></table>',
+                  id: 'sig_gmail_person',
+                  name: 'Gmail signature',
+                  source: 'gmail',
+                  updatedAt: '2026-06-25T12:00:00.000Z',
+                },
+              ],
+            }),
+          )
+        }
+
+        return Promise.resolve(jsonResponse({}))
+      },
+    )
+
+    render(<App />)
+
+    expect(
+      await screen.findByText(/synced 1 gmail signature/i),
+    ).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/gmail/signatures',
+      expect.any(Object),
+    )
+
+    const latestLibrary = savedLibraries.at(-1) as {
+      signatures?: Array<{ html?: string }>
+    }
+    const html = latestLibrary.signatures?.[0]?.html ?? ''
+
+    expect(html).toContain('<font')
+    expect(html).toContain('color="#123456"')
+    expect(html).toContain('face="Arial"')
+    expect(html).toContain('Cheers')
+    expect(html).toContain('<img')
+    expect(html).toContain('src="https://example.com/sig.png"')
+    expect(html).toContain('width="80"')
   })
 
   it('associates form dialog descriptions with dialog content', async () => {

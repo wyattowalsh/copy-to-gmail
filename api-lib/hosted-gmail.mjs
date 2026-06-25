@@ -66,9 +66,7 @@ export async function handleConnect(request) {
 
   const url = new URL(request.url)
   const scopes =
-    url.searchParams.get('scope') === 'signatures'
-      ? signatureScopes
-      : draftScopes
+    url.searchParams.get('scope') === 'drafts' ? draftScopes : signatureScopes
   const oauth = createOAuthStart({ config, origin, scopes })
   const response = redirect(oauth.url)
   response.headers.append(

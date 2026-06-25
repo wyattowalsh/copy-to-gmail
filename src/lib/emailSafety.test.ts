@@ -120,4 +120,32 @@ describe('emailSafety', () => {
     expect(html).not.toContain('onerror')
     expect(html).not.toContain('template')
   })
+
+  it('preserves safe Gmail signature font, image, and table markup', () => {
+    const html = sanitizeEmailBodyHtml(`
+      <table cellpadding="0" cellspacing="0" width="320" bgcolor="#ffffff">
+        <tr valign="top">
+          <td width="80">
+            <img src="https://example.com/sig.png" width="80" height="24" onerror="alert(1)">
+          </td>
+          <td>
+            <font color="#123456" face="Arial" size="2">Cheers</font>
+          </td>
+        </tr>
+      </table>
+    `)
+
+    expect(html).toContain('<table')
+    expect(html).toContain('cellpadding="0"')
+    expect(html).toContain('cellspacing="0"')
+    expect(html).toContain('<font')
+    expect(html).toContain('color="#123456"')
+    expect(html).toContain('face="Arial"')
+    expect(html).toContain('size="2"')
+    expect(html).toContain('Cheers')
+    expect(html).toContain('<img')
+    expect(html).toContain('src="https://example.com/sig.png"')
+    expect(html).toContain('width="80"')
+    expect(html).not.toContain('onerror')
+  })
 })

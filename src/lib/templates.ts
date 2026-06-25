@@ -59,7 +59,7 @@ export function applyTemplate(
   signatureHtml = '',
 ): LocalDraft {
   const html = appendTemplateSignature(
-    renderPlaceholders(template.html, values),
+    renderHtmlPlaceholders(template.html, values),
     signatureHtml,
   )
 
@@ -107,6 +107,15 @@ export function renderPlaceholders(
   })
 }
 
+function renderHtmlPlaceholders(
+  value: string,
+  values: Record<string, string>,
+): string {
+  return value.replace(placeholderPattern, (_match, name: string) => {
+    return escapeHtml(stripHtml(sanitizeEmailBodyHtml(values[name] ?? '')))
+  })
+}
+
 function appendTemplateSignature(html: string, signatureHtml: string): string {
   const signature = sanitizeEmailBodyHtml(signatureHtml).trim()
 
@@ -121,4 +130,13 @@ function uniqueSorted(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean))).sort((a, b) =>
     a.localeCompare(b),
   )
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }

@@ -16,6 +16,7 @@ const ALLOWED_ELEMENTS = new Set([
   'code',
   'div',
   'em',
+  'font',
   'h1',
   'h2',
   'h3',
@@ -24,6 +25,7 @@ const ALLOWED_ELEMENTS = new Set([
   'h6',
   'hr',
   'i',
+  'img',
   'li',
   'ol',
   'p',
@@ -65,9 +67,37 @@ const GLOBAL_ATTRIBUTES = new Set([
 
 const ELEMENT_ATTRIBUTES: Record<string, Set<string>> = {
   a: new Set(['href', 'target', 'rel', 'name']),
-  table: new Set(['cellpadding', 'cellspacing', 'border']),
-  td: new Set(['colspan', 'rowspan', 'width']),
-  th: new Set(['colspan', 'rowspan', 'scope', 'width']),
+  font: new Set(['color', 'face', 'size']),
+  img: new Set(['alt', 'border', 'height', 'src', 'title', 'width']),
+  table: new Set([
+    'align',
+    'bgcolor',
+    'border',
+    'cellpadding',
+    'cellspacing',
+    'width',
+  ]),
+  tbody: new Set(['align', 'bgcolor', 'valign']),
+  td: new Set([
+    'align',
+    'bgcolor',
+    'colspan',
+    'height',
+    'rowspan',
+    'valign',
+    'width',
+  ]),
+  th: new Set([
+    'align',
+    'bgcolor',
+    'colspan',
+    'height',
+    'rowspan',
+    'scope',
+    'valign',
+    'width',
+  ]),
+  tr: new Set(['align', 'bgcolor', 'height', 'valign']),
 }
 
 const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:'])

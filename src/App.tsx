@@ -75,15 +75,12 @@ import {
 } from './lib/readiness'
 import {
   createThemeStyle,
-  getThemePresetIndexEntry,
   parseThemeJson,
   resolveTheme,
   searchThemePresets,
   serializeTheme,
-  THEME_PRESET_CATEGORIES,
   THEME_PRESETS,
   type ThemeDefinition,
-  type ThemePresetCategory,
   type ThemePreference,
 } from './lib/themes'
 import {
@@ -211,6 +208,7 @@ function App() {
   const appContentRef = useRef<HTMLDivElement>(null)
   const autosyncTimerRef = useRef<number | undefined>(undefined)
   const launchFocusDoneRef = useRef(false)
+  const autoImportedSignatureAccountRef = useRef<string | null>(null)
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings())
   const [editorMode, setEditorMode] = useState<EditorMode>(settings.editorMode)
   const [isFocusWorkspace, setFocusWorkspace] = useState(
@@ -267,7 +265,8 @@ function App() {
   const [library, setLibrary] = useState<LibraryBundle>(() =>
     createEmptyLibrary(),
   )
-  const [libraryBusy, setLibraryBusy] = useState(false)
+  const [isLibraryReady, setLibraryReady] = useState(false)
+  const [, setLibraryBusy] = useState(false)
   const [libraryMessage, setLibraryMessage] = useState('')
   const [selectedVariableSetId, setSelectedVariableSetId] = useState('')
   const [prefersDark, setPrefersDark] = useState(() =>
@@ -313,9 +312,8 @@ function App() {
     settings.inspectorDefault === 'collapsed' ||
     (settings.inspectorDefault === 'auto' && isNarrowInspectorViewport)
   const showGmailControls =
-    settings.keepGmailControlsVisible ||
-    gmailStatus.connected ||
-    Boolean(gmailLink || gmailConflict)
+    gmailStatus.connected &&
+    (settings.keepGmailControlsVisible || Boolean(gmailLink || gmailConflict))
   const metadataRecipientCount = getRecipientCount(draftRecipients)
   const metadataSubjectSummary = draftSubject.trim() || 'No subject'
   const metadataRecipientSummary = metadataRecipientCount
@@ -681,6 +679,8 @@ function App() {
       setLibraryMessage('Template, signature, and variable library loaded.')
     } catch (error) {
       setLibraryMessage(getLibraryErrorMessage(error))
+    } finally {
+      setLibraryReady(true)
     }
   }
 
@@ -694,15 +694,11 @@ function App() {
             ? `Connected as ${status.email ?? 'Gmail account'}.`
             : status.needsConfig
               ? 'Add Google OAuth config to enable Gmail sync.'
-              : 'Gmail sync is optional and disconnected.'),
+              : ''),
       )
     } catch (error) {
       setGmailMessage(getGmailErrorMessage(error))
     }
-  }
-
-  function handleGmailConnect() {
-    window.location.assign('/api/gmail/connect')
   }
 
   async function handleGmailDisconnect() {
@@ -1126,16 +1122,6 @@ function App() {
   }
 
   async function handleImportGmailSignatures() {
-    if (!gmailStatus.connected) {
-      setLibraryMessage('Connect Gmail before importing Gmail signatures.')
-      return
-    }
-
-    if (!canImportGmailSignatures) {
-      window.location.assign('/api/gmail/connect?scope=signatures')
-      return
-    }
-
     setLibraryBusy(true)
 
     try {
@@ -1148,14 +1134,45 @@ function App() {
       })
       await persistLibrary(
         next,
-        `Imported ${signatures.length} Gmail signature${signatures.length === 1 ? '' : 's'}.`,
+        signatures.length
+          ? `Synced ${signatures.length} Gmail signature${signatures.length === 1 ? '' : 's'}.`
+          : 'No Gmail signatures were found for this account.',
       )
+      if (!selectedSignatureId && signatures[0]) {
+        setSelectedSignatureId(signatures[0].id)
+      }
     } catch (error) {
       setLibraryMessage(getLibraryErrorMessage(error))
     } finally {
       setLibraryBusy(false)
     }
   }
+
+  useEffect(() => {
+    if (
+      !isLibraryReady ||
+      !gmailStatus.connected ||
+      !canImportGmailSignatures
+    ) {
+      return
+    }
+
+    const accountKey = gmailStatus.email ?? 'connected-gmail-account'
+
+    if (autoImportedSignatureAccountRef.current === accountKey) {
+      return
+    }
+
+    autoImportedSignatureAccountRef.current = accountKey
+    void handleImportGmailSignatures()
+    // Import should run once after the current account and local library are known.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    canImportGmailSignatures,
+    gmailStatus.connected,
+    gmailStatus.email,
+    isLibraryReady,
+  ])
 
   function handleSaveVariableSet() {
     openFormDialog({
@@ -1670,10 +1687,8 @@ function App() {
                   syncMessage={gmailMessage}
                   syncStatus={gmailStatus}
                   themeStyle={themeStyle}
-                  onConnect={handleGmailConnect}
                   onCreateDraft={() => void handleCreateGmailDraft()}
                   onLoadDrafts={() => void handleLoadGmailDrafts()}
-                  onRefresh={() => void refreshGmailStatus()}
                   onUpdateDraft={() => void handleUpdateGmailDraft()}
                 />
                 {isFocusWorkspace ? null : (
@@ -2017,15 +2032,17 @@ function App() {
               })
             }}
           >
-            <GmailPanel
-              busy={gmailBusy}
-              drafts={gmailDrafts}
-              link={gmailLink}
-              message={gmailMessage}
-              status={gmailStatus}
-              onDisconnect={() => void handleGmailDisconnect()}
-              onLoadDraft={(id) => void handleLoadGmailDraft(id)}
-            />
+            {gmailStatus.connected || gmailDrafts.length || gmailLink ? (
+              <GmailPanel
+                busy={gmailBusy}
+                drafts={gmailDrafts}
+                link={gmailLink}
+                message={gmailMessage}
+                status={gmailStatus}
+                onDisconnect={() => void handleGmailDisconnect()}
+                onLoadDraft={(id) => void handleLoadGmailDraft(id)}
+              />
+            ) : null}
             {gmailConflict ? (
               <ConflictPanel
                 busy={gmailBusy}
@@ -2038,8 +2055,6 @@ function App() {
             ) : null}
             <ReadinessPanel report={readiness} />
             <LibraryPanel
-              busy={libraryBusy}
-              canImportGmailSignatures={canImportGmailSignatures}
               library={library}
               message={libraryMessage}
               selectedSignatureId={selectedSignatureId}
@@ -2051,7 +2066,6 @@ function App() {
               onCopySignature={() => void handleCopySelectedSignature()}
               onCopyTemplate={() => void handleCopySelectedTemplate()}
               onCopyVariableSet={() => void handleCopySelectedVariableSet()}
-              onImportGmailSignatures={() => void handleImportGmailSignatures()}
               onImportLibrary={() => void handleImportLibrary()}
               onInsertSignature={() => void handleInsertSignature()}
               onSaveTemplate={() => void handleSaveTemplate()}
@@ -2255,10 +2269,8 @@ function WorkflowStrip({
   syncMessage,
   syncStatus,
   themeStyle,
-  onConnect,
   onCreateDraft,
   onLoadDrafts,
-  onRefresh,
   onUpdateDraft,
 }: {
   busy: boolean
@@ -2271,10 +2283,8 @@ function WorkflowStrip({
   syncMessage: string
   syncStatus: GmailAuthStatus
   themeStyle: CSSProperties
-  onConnect: () => void
   onCreateDraft: () => void
   onLoadDrafts: () => void
-  onRefresh: () => void
   onUpdateDraft: () => void
 }) {
   const warningCount = readiness.checks.filter(
@@ -2283,11 +2293,7 @@ function WorkflowStrip({
   const syncLabel = getGmailWorkflowLabel(syncStatus, link)
   const syncDetail =
     syncMessage ||
-    (syncStatus.connected
-      ? (syncStatus.email ?? 'Gmail connected.')
-      : syncStatus.needsConfig
-        ? 'Add OAuth config to enable Gmail sync.'
-        : 'Gmail sync is optional.')
+    (syncStatus.connected ? (syncStatus.email ?? 'Gmail connected.') : '')
 
   return (
     <section className="workflow-strip" aria-label="Draft workflow">
@@ -2320,7 +2326,7 @@ function WorkflowStrip({
           <Badge tone={getGmailWorkflowTone(syncStatus, link)}>
             {syncLabel}
           </Badge>
-          <span>{syncDetail}</span>
+          {syncDetail ? <span>{syncDetail}</span> : null}
         </div>
       </div>
 
@@ -2338,54 +2344,37 @@ function WorkflowStrip({
                 size="sm"
                 className="workflow-connect-action workflow-menu-trigger"
                 disabled={busy}
-                aria-label={
-                  syncStatus.connected
-                    ? 'Open Gmail sync menu'
-                    : 'Connect Gmail'
-                }
+                aria-label="Open Gmail sync menu"
               >
                 <Mail aria-hidden="true" strokeWidth={2.1} />
-                {syncStatus.connected ? 'Gmail' : 'Connect'}
+                Gmail
                 <MoreHorizontal aria-hidden="true" strokeWidth={2.1} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent style={themeStyle}>
               <DropdownMenuLabel>Gmail workflow</DropdownMenuLabel>
-              {syncStatus.connected ? (
-                link?.draftId ? (
-                  <>
-                    <DropdownMenuItem onSelect={onUpdateDraft}>
-                      <RefreshCw aria-hidden="true" strokeWidth={2.1} />
-                      Sync linked draft
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <a href={openUrl} target="_blank" rel="noreferrer">
-                        <Mail aria-hidden="true" strokeWidth={2.1} />
-                        Open in Gmail
-                      </a>
-                    </DropdownMenuItem>
-                  </>
-                ) : (
-                  <>
-                    <DropdownMenuItem onSelect={onCreateDraft}>
+              {link?.draftId ? (
+                <>
+                  <DropdownMenuItem onSelect={onUpdateDraft}>
+                    <RefreshCw aria-hidden="true" strokeWidth={2.1} />
+                    Sync linked draft
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <a href={openUrl} target="_blank" rel="noreferrer">
                       <Mail aria-hidden="true" strokeWidth={2.1} />
-                      Create Gmail draft
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={onLoadDrafts}>
-                      <RefreshCw aria-hidden="true" strokeWidth={2.1} />
-                      Load drafts
-                    </DropdownMenuItem>
-                  </>
-                )
+                      Open in Gmail
+                    </a>
+                  </DropdownMenuItem>
+                </>
               ) : (
                 <>
-                  <DropdownMenuItem onSelect={onConnect}>
+                  <DropdownMenuItem onSelect={onCreateDraft}>
                     <Mail aria-hidden="true" strokeWidth={2.1} />
-                    Connect Gmail
+                    Create Gmail draft
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={onRefresh}>
+                  <DropdownMenuItem onSelect={onLoadDrafts}>
                     <RefreshCw aria-hidden="true" strokeWidth={2.1} />
-                    Refresh status
+                    Load drafts
                   </DropdownMenuItem>
                 </>
               )}
@@ -2459,7 +2448,6 @@ function InspectorPanel({
           onClick={onToggle}
         >
           <PanelRightOpen aria-hidden="true" strokeWidth={2.1} />
-          <span className="inspector-rail-label">Inspector</span>
           <span className="inspector-rail-chips" aria-hidden="true">
             <Badge tone="neutral">{gmailLabel}</Badge>
             <Badge tone={getReadinessTone(readinessStatus)}>
@@ -2478,7 +2466,6 @@ function InspectorPanel({
         <>
           <div className="inspector-toolbar">
             <div>
-              <span className="field-label">Inspector</span>
               <strong>Sync and checks</strong>
             </div>
             <Button
@@ -2524,7 +2511,6 @@ function GmailPanel({
     <section className="panel-card gmail-card" aria-labelledby="gmail-heading">
       <div className="panel-card-header">
         <div>
-          <span className="field-label">Optional sync</span>
           <h2 id="gmail-heading">Gmail drafts</h2>
         </div>
         <span className={`sync-pill sync-${link?.status ?? 'unlinked'}`}>
@@ -2532,7 +2518,7 @@ function GmailPanel({
         </span>
       </div>
       <p aria-live="polite" role="status">
-        {message || 'Connect Gmail only if you want draft sync.'}
+        {message || 'Gmail draft sync is connected.'}
       </p>
       {status.connected ? (
         <div className="gmail-actions">
@@ -2669,8 +2655,6 @@ function DraftSummary({ draft, title }: { draft: LocalDraft; title: string }) {
 }
 
 function LibraryPanel({
-  busy,
-  canImportGmailSignatures,
   library,
   message,
   selectedSignatureId,
@@ -2682,7 +2666,6 @@ function LibraryPanel({
   onCopySignature,
   onCopyTemplate,
   onCopyVariableSet,
-  onImportGmailSignatures,
   onImportLibrary,
   onInsertSignature,
   onSaveTemplate,
@@ -2691,8 +2674,6 @@ function LibraryPanel({
   onSelectTemplate,
   onSelectVariableSet,
 }: {
-  busy: boolean
-  canImportGmailSignatures: boolean
   library: LibraryBundle
   message: string
   selectedSignatureId: string
@@ -2704,7 +2685,6 @@ function LibraryPanel({
   onCopySignature: () => void
   onCopyTemplate: () => void
   onCopyVariableSet: () => void
-  onImportGmailSignatures: () => void
   onImportLibrary: () => void
   onInsertSignature: () => void
   onSaveTemplate: () => void
@@ -2742,8 +2722,8 @@ function LibraryPanel({
           <div className="library-empty-state">
             <strong>No saved library items</strong>
             <p>
-              Save this draft as a template, import a bundle, or bring in Gmail
-              signatures after sync is enabled.
+              Save this draft as a template, add a signature, or import a
+              bundle.
             </p>
           </div>
           <div className="gmail-actions library-empty-actions">
@@ -2774,16 +2754,6 @@ function LibraryPanel({
               onClick={onImportLibrary}
             >
               Import bundle
-            </button>
-            <button
-              type="button"
-              className="secondary-action compact-action"
-              disabled={busy}
-              onClick={onImportGmailSignatures}
-            >
-              {canImportGmailSignatures
-                ? 'Import Gmail'
-                : 'Enable Gmail import'}
             </button>
           </div>
           {message ? (
@@ -2867,16 +2837,6 @@ function LibraryPanel({
               onClick={onCopySignature}
             >
               Copy signature
-            </button>
-            <button
-              type="button"
-              className="secondary-action compact-action"
-              disabled={busy}
-              onClick={onImportGmailSignatures}
-            >
-              {canImportGmailSignatures
-                ? 'Import Gmail'
-                : 'Enable Gmail import'}
             </button>
           </div>
           <label className="library-field">
@@ -3195,14 +3155,14 @@ function getGmailRedirectErrorMessage(reason: string | null) {
   }
 
   if (reason === 'state') {
-    return 'Gmail connection expired before Google returned. Try Connect Gmail again.'
+    return 'Gmail connection expired before Google returned. Try Gmail sign-in again.'
   }
 
   if (reason === 'token') {
-    return 'Google sign-in returned, but the token exchange failed. Check the OAuth client secret, then try Connect Gmail again.'
+    return 'Google sign-in returned, but the token exchange failed. Check the OAuth client secret, then try Gmail sign-in again.'
   }
 
-  return 'Gmail connection could not finish. Try Connect Gmail again.'
+  return 'Gmail connection could not finish. Try Gmail sign-in again.'
 }
 
 function PreviewDrawer({
@@ -3355,19 +3315,8 @@ function SettingsModal({
   const [isAdvancedThemeOpen, setAdvancedThemeOpen] = useState(false)
   const advancedThemeOpen = isAdvancedThemeOpen || shouldOpenAdvancedTheme
   const [themePresetQuery, setThemePresetQuery] = useState('')
-  const [themePresetCategory, setThemePresetCategory] = useState<
-    ThemePresetCategory | 'All'
-  >('All')
-  const visibleLightPresets = searchThemePresets(
-    themePresetQuery,
-    'light',
-    themePresetCategory,
-  )
-  const visibleDarkPresets = searchThemePresets(
-    themePresetQuery,
-    'dark',
-    themePresetCategory,
-  )
+  const visibleLightPresets = searchThemePresets(themePresetQuery, 'light')
+  const visibleDarkPresets = searchThemePresets(themePresetQuery, 'dark')
   const visiblePresetCount =
     visibleLightPresets.length + visibleDarkPresets.length
 
@@ -3455,31 +3404,6 @@ function SettingsModal({
                       {visiblePresetCount} / {THEME_PRESETS.length}
                     </span>
                   </div>
-                  <ToggleGroup
-                    type="single"
-                    value={themePresetCategory}
-                    onValueChange={(nextCategory) => {
-                      if (nextCategory) {
-                        setThemePresetCategory(
-                          nextCategory as ThemePresetCategory | 'All',
-                        )
-                      }
-                    }}
-                    className="theme-category-filter"
-                    aria-label="Style preset category"
-                  >
-                    {(['All', ...THEME_PRESET_CATEGORIES] as const).map(
-                      (category) => (
-                        <ToggleGroupItem
-                          key={category}
-                          value={category}
-                          aria-label={`Show ${category.toLowerCase()} presets`}
-                        >
-                          {category}
-                        </ToggleGroupItem>
-                      ),
-                    )}
-                  </ToggleGroup>
                   <ThemePresetSection
                     activeTheme={activeTheme}
                     title="Light presets"
@@ -3609,18 +3533,6 @@ function SettingsModal({
                       }
                     />
                   </label>
-                  <label className="toggle-row">
-                    <span>Keep Gmail controls visible</span>
-                    <input
-                      type="checkbox"
-                      checked={settings.keepGmailControlsVisible}
-                      onChange={(event) =>
-                        onSettings({
-                          keepGmailControlsVisible: event.target.checked,
-                        })
-                      }
-                    />
-                  </label>
                 </section>
 
                 <section className="settings-section settings-section-privacy">
@@ -3726,8 +3638,6 @@ function ThemePresetSection({
   title: string
   onPresetTheme: (theme: ThemeDefinition) => void
 }) {
-  const groups = groupThemePresets(themes)
-
   return (
     <section className="theme-preset-section" aria-label={title}>
       <div className="theme-preset-section-header">
@@ -3735,44 +3645,30 @@ function ThemePresetSection({
         <span className="theme-index-count">{themes.length}</span>
       </div>
       {themes.length ? (
-        <div className="theme-preset-groups">
-          {groups.map(({ category, groupedThemes }) => (
-            <div key={category} className="theme-preset-group">
-              <div className="theme-preset-group-header">
-                <span>{category}</span>
-                <span>{groupedThemes.length}</span>
-              </div>
-              <div className="theme-preset-grid">
-                {groupedThemes.map((theme) => {
-                  const index = getThemePresetIndexEntry(theme.id)
-
-                  return (
-                    <Button
-                      key={theme.id}
-                      type="button"
-                      variant="secondary"
-                      className="theme-card"
-                      aria-pressed={activeTheme.id === theme.id}
-                      onClick={() => onPresetTheme(theme)}
-                    >
-                      <span
-                        style={{
-                          background: theme.tokens.background,
-                          borderColor: theme.tokens.lineStrong,
-                          color: theme.tokens.ink,
-                        }}
-                      >
-                        Aa
-                      </span>
-                      <span className="theme-card-copy">
-                        <strong>{theme.name}</strong>
-                        <small>{index?.category ?? theme.mode}</small>
-                      </span>
-                    </Button>
-                  )
-                })}
-              </div>
-            </div>
+        <div className="theme-preset-grid">
+          {themes.map((theme) => (
+            <Button
+              key={theme.id}
+              type="button"
+              variant="secondary"
+              className="theme-card"
+              aria-pressed={activeTheme.id === theme.id}
+              onClick={() => onPresetTheme(theme)}
+            >
+              <span
+                style={{
+                  background: theme.tokens.background,
+                  borderColor: theme.tokens.lineStrong,
+                  color: theme.tokens.ink,
+                }}
+              >
+                Aa
+              </span>
+              <span className="theme-card-copy">
+                <strong>{theme.name}</strong>
+                <small>{theme.mode}</small>
+              </span>
+            </Button>
           ))}
         </div>
       ) : (
@@ -3780,15 +3676,6 @@ function ThemePresetSection({
       )}
     </section>
   )
-}
-
-function groupThemePresets(themes: ThemeDefinition[]) {
-  return THEME_PRESET_CATEGORIES.map((category) => ({
-    category,
-    groupedThemes: themes.filter(
-      (theme) => getThemePresetIndexEntry(theme.id)?.category === category,
-    ),
-  })).filter((group) => group.groupedThemes.length > 0)
 }
 
 function ConfirmDialog({

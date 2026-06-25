@@ -22,9 +22,10 @@ import {
 } from './lib/gmail-client.mjs'
 import {
   createOAuthStart,
-  signatureScopes,
+  draftScopes,
   exchangeOAuthCode,
   getAccessToken,
+  signatureScopes,
 } from './lib/oauth.mjs'
 import { deleteTokenRecord, readTokenRecord } from './lib/token-store.mjs'
 
@@ -354,9 +355,9 @@ async function handleGmailConnect(response, origin, parsedUrl) {
   }
 
   const scopes =
-    parsedUrl.searchParams.get('scope') === 'signatures'
-      ? signatureScopes
-      : undefined
+    parsedUrl.searchParams.get('scope') === 'drafts'
+      ? draftScopes
+      : signatureScopes
   const session = createOAuthStart({ config, origin, scopes })
   oauthSessions.set(session.state, {
     ...session,

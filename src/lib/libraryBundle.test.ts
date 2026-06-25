@@ -13,7 +13,7 @@ describe('library bundles', () => {
       version: 1,
       signatures: [
         {
-          html: '<p>Regards</p><script>alert(1)</script>',
+          html: '<table cellpadding="0" cellspacing="0"><tr><td><font color="#123456" face="Arial">Regards</font><img src="https://example.com/sig.png" width="80" onerror="alert(1)"></td></tr></table><script>alert(1)</script>',
           id: 'sig_1',
           name: 'Regards',
           refreshToken: 'secret',
@@ -47,7 +47,15 @@ describe('library bundles', () => {
     expect(serialized).not.toContain('refreshToken')
     expect(serialized).not.toContain('<script')
     expect(serialized).not.toContain('javascript:')
-    expect(parseLibraryBundle(JSON.parse(serialized))).toEqual(bundle)
+    expect(serialized).not.toContain('onerror')
+
+    const reparsed = parseLibraryBundle(JSON.parse(serialized))
+    const signatureHtml = reparsed.signatures[0]?.html ?? ''
+    expect(signatureHtml).toContain('<font')
+    expect(signatureHtml).toContain('color="#123456"')
+    expect(signatureHtml).toContain('<img')
+    expect(signatureHtml).toContain('src="https://example.com/sig.png"')
+    expect(reparsed).toEqual(bundle)
   })
 
   it('merges imported records by id', () => {

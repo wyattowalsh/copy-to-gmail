@@ -824,15 +824,6 @@
   outline-offset: 2px;
 }
 
-.inspector-rail-label {
-  writing-mode: vertical-rl;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 740;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
 .inspector-rail-chips {
   display: grid;
   gap: 8px;
@@ -1435,35 +1426,6 @@
   font-weight: 700;
 }
 
-.theme-category-filter {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.theme-category-filter [data-slot='toggle-group-item'] {
-  min-height: 30px;
-  border: 1px solid var(--line);
-  border-radius: var(--chip-radius);
-  padding: 0 9px;
-  color: var(--muted);
-  background: var(--surface-muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.theme-category-filter [data-slot='toggle-group-item'][data-state='on'] {
-  border-color: var(--primary);
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 9%, var(--paper));
-}
-
-.theme-category-filter [data-slot='toggle-group-item']:focus-visible {
-  border-color: var(--focus);
-  outline: 2px solid color-mix(in srgb, var(--focus) 32%, transparent);
-  outline-offset: 2px;
-}
-
 .theme-preset-section {
   display: grid;
   gap: 6px;
@@ -1481,32 +1443,6 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(146px, 1fr));
   gap: 6px;
-}
-
-.theme-preset-groups {
-  display: grid;
-  gap: 8px;
-}
-
-.theme-preset-group {
-  display: grid;
-  gap: 6px;
-}
-
-.theme-preset-group-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.theme-preset-group-header span:last-child {
-  font-size: 10px;
 }
 
 .theme-card {
@@ -1677,7 +1613,6 @@
   .tool-menu-item,
   .preview-tabs [data-slot='toggle-group-item'],
   .theme-card,
-  .theme-category-filter [data-slot='toggle-group-item'],
   .mode-switcher [data-slot='toggle-group-item'] {
     transition:
       background-color 150ms ease,
@@ -1709,7 +1644,6 @@
   .mode-switcher [data-slot='toggle-group-item'],
   [data-slot='toggle-group-item'],
   .tool-menu-item,
-  .theme-category-filter [data-slot='toggle-group-item'],
   [data-re-link-bm-item],
   [data-re-btn-bm-item],
   [data-re-img-bm-item],
@@ -1735,10 +1669,6 @@
     align-items: center;
     justify-items: start;
     padding: 10px;
-  }
-
-  .inspector-rail-label {
-    writing-mode: horizontal-tb;
   }
 
   .inspector-rail-chips {
