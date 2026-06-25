@@ -85,6 +85,7 @@ describe('App', () => {
     setMatchMedia(false)
     setClipboard({ write, writeText })
     setClipboardItem(MockClipboardItem)
+    window.history.replaceState({}, '', '/')
   })
 
   it('shows Gmail readiness and labels the editor surface', async () => {
@@ -383,6 +384,49 @@ describe('App', () => {
     expect(
       screen.getByRole('menuitem', { name: /refresh status/i }),
     ).toBeInTheDocument()
+  })
+
+  it('surfaces Gmail callback token failures with a retry-focused message', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        connected: false,
+        needsConfig: false,
+        scopes: [],
+      }),
+    )
+    window.history.replaceState({}, '', '/?gmail=error&reason=token')
+
+    render(<App />)
+
+    expect(
+      await screen.findAllByText(/token exchange failed/i),
+    ).not.toHaveLength(0)
+    expect(window.location.search).toBe('')
+
+    const workflow = screen.getByRole('region', {
+      name: /draft workflow/i,
+    })
+    expect(
+      within(workflow).getByRole('button', { name: /connect gmail/i }),
+    ).toBeEnabled()
+  })
+
+  it('surfaces successful Gmail callback state and clears callback params', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        connected: true,
+        email: 'person@example.com',
+        scopes: ['https://www.googleapis.com/auth/gmail.compose'],
+      }),
+    )
+    window.history.replaceState({}, '', '/?gmail=connected')
+
+    render(<App />)
+
+    expect(
+      await screen.findAllByText(/gmail connected\. sync controls are ready/i),
+    ).not.toHaveLength(0)
+    expect(window.location.search).toBe('')
   })
 
   it('opens the sanitized preview drawer with current source and plain-text views', async () => {

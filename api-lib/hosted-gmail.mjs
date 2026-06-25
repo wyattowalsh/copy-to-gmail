@@ -82,15 +82,13 @@ export async function handleCallback(request) {
   const config = readGoogleOAuthConfig()
 
   if (!config) {
-    return redirect('/?gmail=error')
+    return redirect('/?gmail=error&reason=config')
   }
 
   const url = new URL(request.url)
   const state = url.searchParams.get('state') ?? ''
   const code = url.searchParams.get('code') ?? ''
   const oauth = readSealedCookie(request, oauthCookieName, config)
-  const response = redirect('/?gmail=error')
-  response.headers.append('Set-Cookie', clearCookie(oauthCookieName))
 
   if (
     !oauth ||
@@ -98,7 +96,7 @@ export async function handleCallback(request) {
     oauth.state !== state ||
     Date.now() - Number(oauth.createdAt ?? 0) > oauthTtlSeconds * 1000
   ) {
-    return response
+    return redirectAfterOAuthFailure('state')
   }
 
   try {
@@ -116,7 +114,7 @@ export async function handleCallback(request) {
     )
     return connected
   } catch {
-    return response
+    return redirectAfterOAuthFailure('token')
   }
 }
 
@@ -297,11 +295,17 @@ function readGoogleOAuthConfig() {
     process.env.GOOGLE_CLIENT_SECRET
   const sessionSecret = process.env.COPY_TO_GMAIL_SESSION_SECRET ?? clientSecret
 
-  if (!clientId || !sessionSecret) {
+  if (!clientId || !clientSecret || !sessionSecret) {
     return null
   }
 
   return { clientId, clientSecret: clientSecret ?? '', sessionSecret }
+}
+
+function redirectAfterOAuthFailure(reason) {
+  const response = redirect(`/?gmail=error&reason=${reason}`)
+  response.headers.append('Set-Cookie', clearCookie(oauthCookieName))
+  return response
 }
 
 function createOAuthStart({ config, origin, scopes }) {

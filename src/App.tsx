@@ -348,7 +348,8 @@ function App() {
 
   useEffect(() => {
     labelEditorSurface()
-    void refreshGmailStatus()
+    const gmailRedirectMessage = consumeGmailRedirectMessage()
+    void refreshGmailStatus(gmailRedirectMessage)
     void refreshLibrary()
 
     return () => {
@@ -683,16 +684,17 @@ function App() {
     }
   }
 
-  async function refreshGmailStatus() {
+  async function refreshGmailStatus(messageOverride?: string) {
     try {
       const status = await getGmailStatus()
       setGmailStatus(status)
       setGmailMessage(
-        status.connected
-          ? `Connected as ${status.email ?? 'Gmail account'}.`
-          : status.needsConfig
-            ? 'Add Google OAuth config to enable Gmail sync.'
-            : 'Gmail sync is optional and disconnected.',
+        messageOverride ??
+          (status.connected
+            ? `Connected as ${status.email ?? 'Gmail account'}.`
+            : status.needsConfig
+              ? 'Add Google OAuth config to enable Gmail sync.'
+              : 'Gmail sync is optional and disconnected.'),
       )
     } catch (error) {
       setGmailMessage(getGmailErrorMessage(error))
@@ -3159,6 +3161,48 @@ function getGmailWorkflowTone(
   }
 
   return status.needsConfig ? 'warning' : 'neutral'
+}
+
+function consumeGmailRedirectMessage() {
+  const params = new URLSearchParams(window.location.search)
+  const gmailResult = params.get('gmail')
+
+  if (!gmailResult) {
+    return undefined
+  }
+
+  const reason = params.get('reason')
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${window.location.pathname}${window.location.hash}`,
+  )
+
+  if (gmailResult === 'connected') {
+    return 'Gmail connected. Sync controls are ready.'
+  }
+
+  if (gmailResult === 'error') {
+    return getGmailRedirectErrorMessage(reason)
+  }
+
+  return undefined
+}
+
+function getGmailRedirectErrorMessage(reason: string | null) {
+  if (reason === 'config') {
+    return 'Gmail connection could not start because OAuth config is incomplete.'
+  }
+
+  if (reason === 'state') {
+    return 'Gmail connection expired before Google returned. Try Connect Gmail again.'
+  }
+
+  if (reason === 'token') {
+    return 'Google sign-in returned, but the token exchange failed. Check the OAuth client secret, then try Connect Gmail again.'
+  }
+
+  return 'Gmail connection could not finish. Try Connect Gmail again.'
 }
 
 function PreviewDrawer({
