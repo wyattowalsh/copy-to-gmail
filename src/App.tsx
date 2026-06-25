@@ -416,7 +416,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const media = window.matchMedia?.('(max-width: 760px)')
+    const media = window.matchMedia?.('(max-width: 820px)')
 
     if (!media) {
       return
@@ -3968,7 +3968,7 @@ function getNarrowInspectorViewport(): boolean {
 
 function getCompactComposerViewport(): boolean {
   try {
-    return window.matchMedia?.('(max-width: 760px)').matches ?? false
+    return window.matchMedia?.('(max-width: 820px)').matches ?? false
   } catch {
     return false
   }

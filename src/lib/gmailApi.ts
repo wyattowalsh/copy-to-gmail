@@ -39,11 +39,17 @@ export class GmailConflictError extends Error {
 }
 
 export async function getGmailStatus(): Promise<GmailAuthStatus> {
-  return apiJson<GmailAuthStatus>('/api/gmail/status')
+  return normalizeGmailAuthStatus(
+    await apiJson<Partial<GmailAuthStatus>>('/api/gmail/status'),
+  )
 }
 
 export async function disconnectGmail(): Promise<GmailAuthStatus> {
-  return apiJson<GmailAuthStatus>('/api/gmail/disconnect', { method: 'POST' })
+  return normalizeGmailAuthStatus(
+    await apiJson<Partial<GmailAuthStatus>>('/api/gmail/disconnect', {
+      method: 'POST',
+    }),
+  )
 }
 
 export async function listGmailDrafts(): Promise<GmailDraftSummary[]> {
@@ -122,6 +128,18 @@ async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   return data as T
+}
+
+function normalizeGmailAuthStatus(
+  status: Partial<GmailAuthStatus>,
+): GmailAuthStatus {
+  return {
+    connected: Boolean(status.connected),
+    email: status.email,
+    error: status.error,
+    needsConfig: status.needsConfig,
+    scopes: Array.isArray(status.scopes) ? status.scopes : [],
+  }
 }
 
 function isConflictPayload(value: unknown): value is {

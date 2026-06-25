@@ -102,6 +102,22 @@ describe('App', () => {
     })
   })
 
+  it('keeps the composer mounted when Gmail status omits optional arrays', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        connected: false,
+        needsConfig: false,
+      }),
+    )
+
+    render(<App />)
+
+    expect(await screen.findByText('Body canvas')).toBeInTheDocument()
+    expect(
+      await screen.findAllByText(/gmail sync is optional and disconnected/i),
+    ).not.toHaveLength(0)
+  })
+
   it('surfaces body metrics next to the editor and focuses editing surfaces', async () => {
     const user = userEvent.setup()
     render(<App />)
@@ -167,7 +183,7 @@ describe('App', () => {
     const user = userEvent.setup()
     setMatchMedia(
       (query) =>
-        query.includes('max-width: 760px') ||
+        query.includes('max-width: 820px') ||
         query.includes('max-width: 1180px'),
     )
     render(<App />)
@@ -198,7 +214,7 @@ describe('App', () => {
     const user = userEvent.setup()
     setMatchMedia(
       (query) =>
-        query.includes('max-width: 760px') ||
+        query.includes('max-width: 820px') ||
         query.includes('max-width: 1180px'),
     )
     render(<App />)
