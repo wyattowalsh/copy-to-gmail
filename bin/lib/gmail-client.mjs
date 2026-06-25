@@ -77,16 +77,18 @@ export function fingerprintDraft(draft) {
   return createHash('sha256')
     .update(
       JSON.stringify({
+        bcc: normalizeRecipientList(draft.recipients?.bcc ?? ''),
+        cc: normalizeRecipientList(draft.recipients?.cc ?? ''),
         html: String(draft.html ?? '')
           .replace(/\s+/g, ' ')
           .trim(),
-        recipients: draft.recipients ?? {},
         selectedSignatureId: draft.selectedSignatureId ?? '',
         selectedTemplateId: draft.selectedTemplateId ?? '',
         subject: String(draft.subject ?? '').trim(),
-        text: String(draft.text ?? '')
+        text: String(draft.text || stripHtml(draft.html ?? ''))
           .replace(/\s+/g, ' ')
           .trim(),
+        to: normalizeRecipientList(draft.recipients?.to ?? ''),
       }),
     )
     .digest('hex')
@@ -220,6 +222,13 @@ function sanitizeHeader(value) {
   return String(value ?? '')
     .replace(/[\r\n]/g, ' ')
     .trim()
+}
+
+function normalizeRecipientList(value) {
+  return String(value ?? '')
+    .split(/[;,\n]/)
+    .map((recipient) => recipient.trim())
+    .filter(Boolean)
 }
 
 function stripHtml(value) {

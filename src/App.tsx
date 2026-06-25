@@ -2377,10 +2377,7 @@ function WorkflowStrip({
                 )
               ) : (
                 <>
-                  <DropdownMenuItem
-                    disabled={syncStatus.needsConfig}
-                    onSelect={onConnect}
-                  >
+                  <DropdownMenuItem onSelect={onConnect}>
                     <Mail aria-hidden="true" strokeWidth={2.1} />
                     Connect Gmail
                   </DropdownMenuItem>

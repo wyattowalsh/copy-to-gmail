@@ -357,7 +357,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /save current/i })).toBeEnabled()
   })
 
-  it('shows setup-needed Gmail state in the workflow without enabling connect', async () => {
+  it('shows setup-needed Gmail state in the workflow while keeping connect available', async () => {
     const user = userEvent.setup()
     render(<App />)
 
@@ -379,7 +379,7 @@ describe('App', () => {
     await user.click(gmailActions)
     expect(
       screen.getByRole('menuitem', { name: /connect gmail/i }),
-    ).toHaveAttribute('aria-disabled', 'true')
+    ).not.toHaveAttribute('aria-disabled', 'true')
     expect(
       screen.getByRole('menuitem', { name: /refresh status/i }),
     ).toBeInTheDocument()

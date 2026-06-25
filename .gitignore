@@ -31,3 +31,4 @@ gmail-token.json
 *.sln
 *.sw?
 .opencode/
+.vercel
